@@ -3,9 +3,10 @@ import { CameraManager } from './cameraManager.js';
 import { downloadPng, downloadTxt, copyTextToClipboard } from './exporter.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-  // PWA Service Worker Registration
+  // PWA Service Worker Registration (Relative path friendly)
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js')
+    const swPath = new URL('./sw.js', import.meta.url).href;
+    navigator.serviceWorker.register(swPath)
       .then(() => console.log('Service Worker Registered'))
       .catch(err => console.log('SW Registration failed: ', err));
   }
