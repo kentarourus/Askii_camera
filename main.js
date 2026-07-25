@@ -3,12 +3,63 @@ import { CameraManager } from './cameraManager.js';
 import { downloadPng, downloadTxt, copyTextToClipboard } from './exporter.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-  // PWA Service Worker Registration (Relative path friendly)
+  // ────────── PWA Install & Service Worker ──────────
+  let deferredPrompt = null;
+  const btnInstallApp = document.getElementById('btnInstallApp');
+  const iosInstallModal = document.getElementById('iosInstallModal');
+  const btnCloseIosModal = document.getElementById('btnCloseIosModal');
+  const btnConfirmIosGuide = document.getElementById('btnConfirmIosGuide');
+
   if ('serviceWorker' in navigator) {
     const swPath = new URL('./sw.js', import.meta.url).href;
     navigator.serviceWorker.register(swPath)
       .then(() => console.log('Service Worker Registered'))
       .catch(err => console.log('SW Registration failed: ', err));
+  }
+
+  // Detect PWA Installation Availability
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    // Show Install Button in Top Bar
+    if (btnInstallApp) {
+      btnInstallApp.classList.remove('hidden');
+    }
+  });
+
+  // Handle PWA Install Button Click
+  if (btnInstallApp) {
+    // Show button if iOS or Standalone check
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+
+    if (!isStandalone) {
+      btnInstallApp.classList.remove('hidden');
+    }
+
+    btnInstallApp.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          showToast('アプリをインストールしました！');
+          btnInstallApp.classList.add('hidden');
+        }
+        deferredPrompt = null;
+      } else if (isIOS) {
+        // Show iOS Installation Guide Modal
+        iosInstallModal.classList.add('open');
+      } else {
+        showToast('ブラウザのメニューから「アプリをインストール」を選択できます');
+      }
+    });
+  }
+
+  if (btnCloseIosModal) {
+    btnCloseIosModal.addEventListener('click', () => iosInstallModal.classList.remove('open'));
+  }
+  if (btnConfirmIosGuide) {
+    btnConfirmIosGuide.addEventListener('click', () => iosInstallModal.classList.remove('open'));
   }
 
   // DOM Elements - Viewfinder & Overlays
@@ -155,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 2500);
   }
 
-  // ────────── Mode Ribbon Select ──────────
+  // Mode Ribbon Select
   modeRibbon.addEventListener('click', (e) => {
     const btn = e.target.closest('.mode-item');
     if (!btn) return;
@@ -172,21 +223,18 @@ document.addEventListener('DOMContentLoaded', () => {
     updateEngineSettings();
   });
 
-  // ────────── Native Shutter Trigger ──────────
+  // Native Shutter Trigger
   btnShutter.addEventListener('click', () => {
-    // 1. Shutter Flash FX
     shutterFlash.classList.add('flash-active');
     setTimeout(() => {
       shutterFlash.classList.remove('flash-active');
     }, 100);
 
-    // 2. Clone ASCII Canvas to Modal Preview
     modalPreviewCanvas.width = asciiCanvas.width;
     modalPreviewCanvas.height = asciiCanvas.height;
     const ctx = modalPreviewCanvas.getContext('2d');
     ctx.drawImage(asciiCanvas, 0, 0);
 
-    // 3. Open Export Modal
     captureModal.classList.add('open');
   });
 
@@ -194,7 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
     captureModal.classList.remove('open');
   });
 
-  // ────────── Top Bar Buttons ──────────
+  // Top Bar Buttons
   btnToggleGrid.addEventListener('click', () => {
     cameraGrid.classList.toggle('hidden');
     btnToggleGrid.classList.toggle('active');
@@ -241,7 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // ────────── Drag & Drop ──────────
+  // Drag & Drop
   canvasContainer.addEventListener('dragover', (e) => {
     e.preventDefault();
     dropOverlay.classList.add('drag-over');
@@ -259,7 +307,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // ────────── Drawer Controls Listeners ──────────
+  // Drawer Controls Listeners
   bgColorInput.addEventListener('input', updateEngineSettings);
   textColorInput.addEventListener('input', updateEngineSettings);
 
@@ -316,7 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateEngineSettings();
   });
 
-  // ────────── Export Modal Actions ──────────
+  // Export Modal Actions
   btnSnapPng.addEventListener('click', () => {
     downloadPng(asciiCanvas, `ascii-art-${Date.now()}.png`);
     showToast('PNG画像として保存しました');

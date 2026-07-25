@@ -2,21 +2,26 @@
   "name": "ASCII VISION - アスキーカメラ",
   "short_name": "ASCII Vision",
   "description": "リアルタイムアスキーアートカメラ & 画像変換アプリ",
+  "id": "./",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#0a0c10",
-  "theme_color": "#0a0c10",
+  "background_color": "#05070a",
+  "theme_color": "#05070a",
   "orientation": "any",
+  "categories": ["photo", "utilities", "entertainment"],
   "icons": [
     {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
+      "src": "./icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     },
     {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
+      "src": "./icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ]
 }
