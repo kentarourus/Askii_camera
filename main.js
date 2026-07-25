@@ -3,40 +3,50 @@ import { CameraManager } from './cameraManager.js';
 import { downloadPng, downloadTxt, copyTextToClipboard } from './exporter.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-  // DOM Elements
+  // PWA Service Worker Registration
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js')
+      .then(() => console.log('Service Worker Registered'))
+      .catch(err => console.log('SW Registration failed: ', err));
+  }
+
+  // DOM Elements - Viewfinder & Overlays
   const asciiCanvas = document.getElementById('asciiCanvas');
   const sourceCanvas = document.getElementById('sourceCanvas');
   const webcamVideo = document.getElementById('webcamVideo');
 
-  const statusDot = document.getElementById('statusDot');
-  const statusText = document.getElementById('statusText');
   const fpsBadge = document.getElementById('fpsBadge');
-  const screenWrapper = document.getElementById('screenWrapper');
+  const cameraGrid = document.getElementById('cameraGrid');
+  const shutterFlash = document.getElementById('shutterFlash');
   const canvasContainer = document.getElementById('canvasContainer');
   const dropOverlay = document.getElementById('dropOverlay');
 
-  const btnStartCamera = document.getElementById('btnStartCamera');
+  // Buttons & Controls
+  const btnToggleGrid = document.getElementById('btnToggleGrid');
   const btnSwitchCamera = document.getElementById('btnSwitchCamera');
-  const cameraSwitchRow = document.getElementById('cameraSwitchRow');
+  const btnToggleDrawer = document.getElementById('btnToggleDrawer');
+  const btnFullscreen = document.getElementById('btnFullscreen');
+  const btnShutter = document.getElementById('btnShutter');
+  const btnPause = document.getElementById('btnPause');
+  const pauseIcon = document.getElementById('pauseIcon');
   const fileInput = document.getElementById('fileInput');
 
-  const btnPause = document.getElementById('btnPause');
-  const btnFullscreen = document.getElementById('btnFullscreen');
-  const btnSnapPng = document.getElementById('btnSnapPng');
-  const btnSnapTxt = document.getElementById('btnSnapTxt');
-  const btnCopyTxt = document.getElementById('btnCopyTxt');
+  // Mode Ribbon
+  const modeRibbon = document.getElementById('modeRibbon');
 
-  // Form Controls - Color & Themes
-  const colorModeSelect = document.getElementById('colorMode');
-  const customColorPickerRow = document.getElementById('customColorPickerRow');
-  const bgColorInput = document.getElementById('bgColorInput');
-  const textColorInput = document.getElementById('textColorInput');
+  // Adjustment Drawer
+  const adjustmentDrawer = document.getElementById('adjustmentDrawer');
+  const btnCloseDrawer = document.getElementById('btnCloseDrawer');
 
+  // Drawer Form Controls
   const charSetSelect = document.getElementById('charSetSelect');
   const customCharGroup = document.getElementById('customCharGroup');
   const customCharInput = document.getElementById('customCharInput');
 
-  // Fine Tuning Controls
+  const customColorRow = document.getElementById('customColorRow');
+  const bgColorInput = document.getElementById('bgColorInput');
+  const textColorInput = document.getElementById('textColorInput');
+
   const saturationSlider = document.getElementById('saturationSlider');
   const saturationVal = document.getElementById('saturationVal');
 
@@ -56,7 +66,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const invertCheckbox = document.getElementById('invertCheckbox');
 
-  // Resolution Controls
   const resolutionSlider = document.getElementById('resolutionSlider');
   const resolutionVal = document.getElementById('resolutionVal');
 
@@ -66,12 +75,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const charAspectSlider = document.getElementById('charAspectSlider');
   const charAspectVal = document.getElementById('charAspectVal');
 
+  // Capture Modal Elements
+  const captureModal = document.getElementById('captureModal');
+  const btnCloseModal = document.getElementById('btnCloseModal');
+  const modalPreviewCanvas = document.getElementById('modalPreviewCanvas');
+  const btnSnapPng = document.getElementById('btnSnapPng');
+  const btnSnapTxt = document.getElementById('btnSnapTxt');
+  const btnCopyTxt = document.getElementById('btnCopyTxt');
+
   const toast = document.getElementById('toast');
 
   // State
   let isPaused = false;
   let animFrameId = null;
   let currentSource = null;
+  let activeColorMode = 'matrix';
 
   // Initialize Engine & Camera
   const engine = new AsciiEngine(asciiCanvas, sourceCanvas);
@@ -80,23 +98,15 @@ document.addEventListener('DOMContentLoaded', () => {
     webcamVideo,
     (source, mode) => {
       currentSource = source;
-      updateStatus(true, mode === 'camera' ? 'カメラ動作中' : 'ファイル再生中');
-      if (mode === 'camera') {
-        cameraSwitchRow.style.display = 'block';
-        btnStartCamera.classList.add('active');
-      } else {
-        cameraSwitchRow.style.display = 'none';
-        btnStartCamera.classList.remove('active');
-      }
       startLoop();
+      showToast(mode === 'camera' ? 'カメラ動作中' : 'メディア読み込み完了');
     },
     (errMsg) => {
       showToast(errMsg);
-      updateStatus(false, 'エラー');
     }
   );
 
-  // Update Settings
+  // Update Settings from Controls
   function updateEngineSettings() {
     let charSet = CHARACTER_SETS[charSetSelect.value];
     if (charSetSelect.value === 'custom') {
@@ -108,7 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
       fontSize: parseInt(fontSizeSlider.value, 10),
       charAspect: parseFloat(charAspectSlider.value),
       charSet: charSet,
-      colorMode: colorModeSelect.value,
+      colorMode: activeColorMode,
       brightness: parseInt(brightnessSlider.value, 10),
       contrast: parseFloat(contrastSlider.value),
       saturation: parseFloat(saturationSlider.value),
@@ -121,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Animation Loop
+  // Render Animation Loop
   function renderFrame() {
     if (!isPaused && currentSource) {
       engine.process(currentSource);
@@ -136,46 +146,126 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Status & Toast Helper
-  function updateStatus(active, text) {
-    if (active) {
-      statusDot.classList.add('active');
-    } else {
-      statusDot.classList.remove('active');
-    }
-    statusText.textContent = text;
-  }
-
   function showToast(msg) {
     toast.textContent = msg;
     toast.classList.add('show');
     setTimeout(() => {
       toast.classList.remove('show');
-    }, 3000);
+    }, 2500);
   }
 
-  // Event Listeners - Controls
-  colorModeSelect.addEventListener('change', () => {
-    if (colorModeSelect.value === 'custom') {
-      customColorPickerRow.style.display = 'block';
+  // ────────── Mode Ribbon Select ──────────
+  modeRibbon.addEventListener('click', (e) => {
+    const btn = e.target.closest('.mode-item');
+    if (!btn) return;
+
+    modeRibbon.querySelectorAll('.mode-item').forEach(el => el.classList.remove('active'));
+    btn.classList.add('active');
+
+    activeColorMode = btn.dataset.mode;
+    if (activeColorMode === 'custom') {
+      customColorRow.style.display = 'block';
     } else {
-      customColorPickerRow.style.display = 'none';
+      customColorRow.style.display = 'none';
     }
     updateEngineSettings();
   });
 
+  // ────────── Native Shutter Trigger ──────────
+  btnShutter.addEventListener('click', () => {
+    // 1. Shutter Flash FX
+    shutterFlash.classList.add('flash-active');
+    setTimeout(() => {
+      shutterFlash.classList.remove('flash-active');
+    }, 100);
+
+    // 2. Clone ASCII Canvas to Modal Preview
+    modalPreviewCanvas.width = asciiCanvas.width;
+    modalPreviewCanvas.height = asciiCanvas.height;
+    const ctx = modalPreviewCanvas.getContext('2d');
+    ctx.drawImage(asciiCanvas, 0, 0);
+
+    // 3. Open Export Modal
+    captureModal.classList.add('open');
+  });
+
+  btnCloseModal.addEventListener('click', () => {
+    captureModal.classList.remove('open');
+  });
+
+  // ────────── Top Bar Buttons ──────────
+  btnToggleGrid.addEventListener('click', () => {
+    cameraGrid.classList.toggle('hidden');
+    btnToggleGrid.classList.toggle('active');
+  });
+
+  btnSwitchCamera.addEventListener('click', async () => {
+    await cameraManager.switchCamera();
+    showToast('カメラ切り替え完了');
+  });
+
+  btnToggleDrawer.addEventListener('click', () => {
+    adjustmentDrawer.classList.toggle('open');
+  });
+
+  btnCloseDrawer.addEventListener('click', () => {
+    adjustmentDrawer.classList.remove('open');
+  });
+
+  btnFullscreen.addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {
+        showToast('全画面表示に対応していません');
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  });
+
+  btnPause.addEventListener('click', () => {
+    isPaused = !isPaused;
+    if (isPaused) {
+      pauseIcon.innerHTML = '<path fill="currentColor" d="M8 5v14l11-7z"/>';
+      showToast('一時停止中');
+    } else {
+      pauseIcon.innerHTML = '<path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+      showToast('再開');
+    }
+  });
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      cameraManager.loadFile(file);
+    }
+  });
+
+  // ────────── Drag & Drop ──────────
+  canvasContainer.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropOverlay.classList.add('drag-over');
+  });
+
+  canvasContainer.addEventListener('dragleave', () => {
+    dropOverlay.classList.remove('drag-over');
+  });
+
+  canvasContainer.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropOverlay.classList.remove('drag-over');
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      cameraManager.loadFile(e.dataTransfer.files[0]);
+    }
+  });
+
+  // ────────── Drawer Controls Listeners ──────────
   bgColorInput.addEventListener('input', updateEngineSettings);
   textColorInput.addEventListener('input', updateEngineSettings);
 
   charSetSelect.addEventListener('change', () => {
-    if (charSetSelect.value === 'custom') {
-      customCharGroup.style.display = 'flex';
-    } else {
-      customCharGroup.style.display = 'none';
-    }
+    customCharGroup.style.display = charSetSelect.value === 'custom' ? 'flex' : 'none';
     updateEngineSettings();
   });
-
   customCharInput.addEventListener('input', updateEngineSettings);
 
   saturationSlider.addEventListener('input', () => {
@@ -225,68 +315,11 @@ document.addEventListener('DOMContentLoaded', () => {
     updateEngineSettings();
   });
 
-  // Buttons - Source
-  btnStartCamera.addEventListener('click', async () => {
-    const success = await cameraManager.startCamera();
-    if (success) {
-      showToast('カメラを起動しました');
-    }
-  });
-
-  btnSwitchCamera.addEventListener('click', async () => {
-    await cameraManager.switchCamera();
-    showToast('カメラを切り替えました');
-  });
-
-  fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      cameraManager.loadFile(file);
-      showToast(`${file.name} を読み込みました`);
-    }
-  });
-
-  // Drag & Drop
-  canvasContainer.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropOverlay.classList.add('drag-over');
-  });
-
-  canvasContainer.addEventListener('dragleave', () => {
-    dropOverlay.classList.remove('drag-over');
-  });
-
-  canvasContainer.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropOverlay.classList.remove('drag-over');
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      cameraManager.loadFile(file);
-      showToast(`${file.name} を読み込みました`);
-    }
-  });
-
-  // Action Buttons
-  btnPause.addEventListener('click', () => {
-    isPaused = !isPaused;
-    btnPause.textContent = isPaused ? '▶️' : '⏸️';
-    btnPause.title = isPaused ? '再開' : '一時停止';
-    showToast(isPaused ? '表示を一時停止しました' : '再生を再開しました');
-  });
-
-  btnFullscreen.addEventListener('click', () => {
-    if (!document.fullscreenElement) {
-      screenWrapper.requestFullscreen().catch(err => {
-        showToast('全画面表示に失敗しました');
-      });
-    } else {
-      document.exitFullscreen();
-    }
-  });
-
+  // ────────── Export Modal Actions ──────────
   btnSnapPng.addEventListener('click', () => {
     downloadPng(asciiCanvas, `ascii-art-${Date.now()}.png`);
     showToast('PNG画像として保存しました');
+    captureModal.classList.remove('open');
   });
 
   btnSnapTxt.addEventListener('click', () => {
@@ -294,8 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (text) {
       downloadTxt(text, `ascii-art-${Date.now()}.txt`);
       showToast('テキスト(.txt)として保存しました');
-    } else {
-      showToast('保存するテキストがありません');
+      captureModal.classList.remove('open');
     }
   });
 
@@ -305,19 +337,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const success = await copyTextToClipboard(text);
       if (success) {
         showToast('クリップボードにコピーしました');
-      } else {
-        showToast('コピーに失敗しました');
+        captureModal.classList.remove('open');
       }
-    } else {
-      showToast('コピーするテキストがありません');
     }
   });
 
-  // Initial Setup
+  // Initial Engine Setup & Auto Start Camera
   updateEngineSettings();
-
-  // Try auto starting camera on load
   cameraManager.startCamera().catch(() => {
-    updateStatus(false, 'カメラまたはファイルを選択してください');
+    showToast('カメラまたはファイルを選択してください');
   });
 });
