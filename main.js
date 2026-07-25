@@ -77,14 +77,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const pauseIcon = document.getElementById('pauseIcon');
   const fileInput = document.getElementById('fileInput');
 
-  // Quick Tune Bar & Floating Slider
-  const quickTuneBar = document.querySelector('.quick-tune-bar');
-  const quickSliderPopup = document.getElementById('quickSliderPopup');
-  const quickSliderTitle = document.getElementById('quickSliderTitle');
-  const quickSliderValue = document.getElementById('quickSliderValue');
-  const quickSliderInput = document.getElementById('quickSliderInput');
-  let currentActiveTune = 'brightness';
-
   // Mode Ribbon
   const modeRibbon = document.getElementById('modeRibbon');
 
@@ -215,54 +207,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 2500);
   }
 
-  // ────────── Camera Pro Quick Tune Bar Logic ──────────
-  const TUNE_MAP = {
-    brightness: { title: '☀️ 明るさ', min: -100, max: 100, step: 5, target: brightnessSlider, targetVal: brightnessVal },
-    shadow:     { title: '🌗 暗部補正', min: 0, max: 60, step: 2, target: shadowBoostSlider, targetVal: shadowBoostVal },
-    contrast:   { title: '🌓 コントラスト', min: 0.5, max: 3.0, step: 0.05, target: contrastSlider, targetVal: contrastVal },
-    saturation: { title: '🎨 鮮やかさ', min: 0.0, max: 3.0, step: 0.1, target: saturationSlider, targetVal: saturationVal },
-    resolution: { title: '🔍 解像度', min: 40, max: 240, step: 5, target: resolutionSlider, targetVal: resolutionVal },
-  };
-
-  function setupQuickSlider(tuneKey) {
-    const config = TUNE_MAP[tuneKey];
-    if (!config) return;
-
-    currentActiveTune = tuneKey;
-    quickSliderTitle.textContent = config.title;
-    quickSliderInput.min = config.min;
-    quickSliderInput.max = config.max;
-    quickSliderInput.step = config.step;
-    quickSliderInput.value = config.target.value;
-    quickSliderValue.textContent = config.target.value;
-  }
-
-  quickTuneBar.addEventListener('click', (e) => {
-    const btn = e.target.closest('.tune-btn');
-    if (!btn) return;
-
-    const tuneKey = btn.dataset.tune;
-    if (currentActiveTune === tuneKey && !quickSliderPopup.classList.contains('hidden')) {
-      quickSliderPopup.classList.add('hidden');
-      btn.classList.remove('active');
-    } else {
-      quickTuneBar.querySelectorAll('.tune-btn').forEach(el => el.classList.remove('active'));
-      btn.classList.add('active');
-      setupQuickSlider(tuneKey);
-      quickSliderPopup.classList.remove('hidden');
-    }
-  });
-
-  quickSliderInput.addEventListener('input', () => {
-    const config = TUNE_MAP[currentActiveTune];
-    if (config) {
-      config.target.value = quickSliderInput.value;
-      config.targetVal.textContent = quickSliderInput.value;
-      quickSliderValue.textContent = quickSliderInput.value;
-      updateEngineSettings();
-    }
-  });
-
   // Aspect Ratio Cycle
   btnAspect.addEventListener('click', () => {
     currentAspectIdx = (currentAspectIdx + 1) % aspectModes.length;
@@ -387,13 +331,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   shadowBoostSlider.addEventListener('input', () => {
     shadowBoostVal.textContent = shadowBoostSlider.value;
-    setupQuickSlider('shadow');
     updateEngineSettings();
   });
 
   saturationSlider.addEventListener('input', () => {
     saturationVal.textContent = saturationSlider.value;
-    setupQuickSlider('saturation');
     updateEngineSettings();
   });
 
@@ -404,13 +346,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   brightnessSlider.addEventListener('input', () => {
     brightnessVal.textContent = brightnessSlider.value;
-    setupQuickSlider('brightness');
     updateEngineSettings();
   });
 
   contrastSlider.addEventListener('input', () => {
     contrastVal.textContent = contrastSlider.value;
-    setupQuickSlider('contrast');
     updateEngineSettings();
   });
 
@@ -428,7 +368,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   resolutionSlider.addEventListener('input', () => {
     resolutionVal.textContent = resolutionSlider.value;
-    setupQuickSlider('resolution');
     updateEngineSettings();
   });
 
@@ -473,7 +412,6 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('resize', updateEngineSettings);
 
   // Initial Engine Setup & Auto Start Camera
-  setupQuickSlider('brightness');
   updateEngineSettings();
   cameraManager.startCamera().catch(() => {
     showToast('カメラまたはファイルを選択してください');

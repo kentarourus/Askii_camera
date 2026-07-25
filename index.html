@@ -25,7 +25,7 @@
 
     <!-- Viewfinder Area (Main Display) -->
     <main class="viewfinder-wrapper">
-      <!-- Minimal Top Control Bar (Clean Camera UI - No Title/Logo Text) -->
+      <!-- Minimal Top Control Bar -->
       <header class="top-control-bar">
         <div class="top-left-actions">
           <!-- Install App PWA Button -->
@@ -86,42 +86,8 @@
       <video id="webcamVideo" autoplay playsinline muted style="display: none; position: absolute; width: 1px; height: 1px; opacity: 0;"></video>
       <canvas id="sourceCanvas" style="display: none; position: absolute; width: 1px; height: 1px; opacity: 0;"></canvas>
 
-      <!-- Bottom Control Section (Native Camera App Style) -->
+      <!-- Bottom Control Section -->
       <div class="bottom-control-section">
-        
-        <!-- On-Screen Quick Adjustment Popup Slider (ファインダー上のクイック調整スライダー) -->
-        <div id="quickSliderPopup" class="quick-slider-popup hidden">
-          <div class="quick-slider-header">
-            <span id="quickSliderTitle" class="quick-title">☀️ 明るさ</span>
-            <span id="quickSliderValue" class="quick-val">0</span>
-          </div>
-          <input type="range" id="quickSliderInput" min="-100" max="100" step="5" value="0" />
-        </div>
-
-        <!-- Camera Pro Quick Selector Bar (カメラプロ仕様クイック調整ダイヤル) -->
-        <div class="quick-tune-bar">
-          <button class="tune-btn active" data-tune="brightness" title="明るさ">
-            <span class="tune-icon">☀️</span>
-            <span class="tune-name">明るさ</span>
-          </button>
-          <button class="tune-btn" data-tune="shadow" title="暗部補正">
-            <span class="tune-icon">🌗</span>
-            <span class="tune-name">暗部補正</span>
-          </button>
-          <button class="tune-btn" data-tune="contrast" title="コントラスト">
-            <span class="tune-icon">🌓</span>
-            <span class="tune-name">対比</span>
-          </button>
-          <button class="tune-btn" data-tune="saturation" title="鮮やかさ">
-            <span class="tune-icon">🎨</span>
-            <span class="tune-name">彩度</span>
-          </button>
-          <button class="tune-btn" data-tune="resolution" title="解像度">
-            <span class="tune-icon">🔍</span>
-            <span class="tune-name">解像度</span>
-          </button>
-        </div>
-
         <!-- Camera Mode Ribbon -->
         <div class="mode-ribbon">
           <div class="mode-scroll" id="modeRibbon">
