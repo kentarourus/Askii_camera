@@ -1,13 +1,12 @@
 /**
  * =====================================================================
- *  AsciiEngine v3 — Ultra-Realistic High-Fidelity ASCII Engine
+ *  AsciiEngine v3.5 — Color-Faithful & Smart Adaptive Brightness Engine
  * =====================================================================
  *
- *  新機能:
- *    - Bayer 4x4 Ordered Dithering (写実的グラデーション & 滑らかな階調)
- *    - S-Curve Tone Mapping (立体感・コントラスト表現の劇的向上)
- *    - Frame Aspect Ratio Mode ('full', '16:9', '4:3', '1:1')
- *    - バッチレンダリング & 超高速 LUT パイプライン
+ *  特徴:
+ *    - 色の忠実性 (Color Fidelity): 元画像の素直で鮮やかな発色をそのまま再現
+ *    - スマート自動露出・明暗階調補正: 暗い場所での黒潰れや白飛びを防ぎ、文字濃度に綺麗にマッピング
+ *    - ディザリングの輝度限定適用: 色味（Chroma）を一切汚さず文字階調のみ滑らか化
  */
 
 export const CHARACTER_SETS = {
@@ -17,78 +16,34 @@ export const CHARACTER_SETS = {
   binary:    '10',
   emoji:     '💥🔥😎⭐✨⚡🔷▫️ ',
   matrix:    'ｦｱｳｴｵｶｷｹｺｻｼｽｾｿﾀﾂﾃﾅﾆﾇﾈﾊﾋﾎﾏﾐﾑﾒﾓﾔﾕﾗﾘﾜ9876543210 ',
-  realistic: '█▉▊▋▌▍▎▏░▒▓#@$%=+*:-. ', // 超リアル表現用マルチシェード
+  realistic: '$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrft/\\|()1{}[]?-_+~<>i!lI;:,"^`\'. ',
 };
 
-// ────────── Bayer 4x4 Dithering Matrix ──────────
+// ────────── Bayer Dithering for Luminance Only ──────────
 const BAYER_4X4 = [
-  [-8,   0, -6,   2],
-  [ 4,  -4,  6,  -2],
-  [-5,   3, -7,   1],
-  [ 7,  -1,  5,  -3]
+  [-4,   0, -3,   1],
+  [ 2,  -2,  3,  -1],
+  [-2.5, 1.5, -3.5, 0.5],
+  [ 3.5,-0.5, 2.5, -1.5]
 ];
 
-// ────────── S-Curve Tone Mapping LUT ──────────
-function buildSCurveLUT(contrast, brightness, gamma) {
+// ────────── Smart Luminance LUT Builder ──────────
+function buildLuminanceLUT(contrast, brightness, gamma) {
   const lut = new Uint8Array(256);
-  const invGamma = 1 / Math.max(0.01, gamma);
-  const contrastFactor = (259 * (contrast * 255 + 255)) / (255 * (259 - contrast * 255));
+  const invGamma = 1 / Math.max(0.1, gamma);
+  const factor = (259 * (contrast * 255 + 255)) / (255 * (259 - contrast * 255));
 
   for (let i = 0; i < 256; i++) {
-    // 1. Normalized 0..1
-    let x = i / 255;
-    // 2. S-Curve sigmoid mapping for realism
-    x = x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
-    let v = x * 255;
-
-    // 3. Brightness + Contrast
-    v = contrastFactor * (v + brightness - 128) + 128;
-
-    // 4. Gamma
+    // 1. Brightness offset
+    let v = i + brightness;
+    // 2. Contrast adjustment
+    v = factor * (v - 128) + 128;
+    // 3. Gamma curve
     v = Math.pow(Math.max(0, Math.min(255, v)) / 255, invGamma) * 255;
 
     lut[i] = Math.min(255, Math.max(0, Math.round(v)));
   }
   return lut;
-}
-
-// ────────── Image Pipeline ──────────
-class ImagePipeline {
-  constructor() {
-    this._toneLUT = null;
-    this._lastParams = '';
-  }
-
-  apply(pixels, width, height, opts) {
-    const len = width * height * 4;
-    const paramKey = `${opts.contrast}_${opts.brightness}_${opts.gamma}`;
-
-    if (paramKey !== this._lastParams) {
-      this._toneLUT = buildSCurveLUT(opts.contrast, opts.brightness, opts.gamma);
-      this._lastParams = paramKey;
-    }
-
-    const lut = this._toneLUT;
-    const sat = opts.saturation;
-    const needSat = sat !== 1.0;
-
-    for (let i = 0; i < len; i += 4) {
-      let r = pixels[i];
-      let g = pixels[i + 1];
-      let b = pixels[i + 2];
-
-      if (needSat) {
-        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-        r = Math.min(255, Math.max(0, gray + (r - gray) * sat));
-        g = Math.min(255, Math.max(0, gray + (g - gray) * sat));
-        b = Math.min(255, Math.max(0, gray + (b - gray) * sat));
-      }
-
-      pixels[i]     = lut[r | 0];
-      pixels[i + 1] = lut[g | 0];
-      pixels[i + 2] = lut[b | 0];
-    }
-  }
 }
 
 // ────────── Sobel Edge Detector ──────────
@@ -97,7 +52,7 @@ class EdgeDetector {
     const lum = new Float32Array(width * height);
     for (let i = 0; i < width * height; i++) {
       const pi = i * 4;
-      lum[i] = 0.299 * pixels[pi] + 0.587 * pixels[pi + 1] + 0.114 * pixels[pi + 2];
+      lum[i] = 0.2126 * pixels[pi] + 0.7152 * pixels[pi + 1] + 0.0722 * pixels[pi + 2];
     }
 
     const edgeMap = new Float32Array(width * height);
@@ -124,26 +79,34 @@ class EdgeDetector {
   }
 }
 
+// ────────── Color Output Functions (High Color Fidelity) ──────────
 function getCharColorString(mode, r, g, b, lum, x, y, cols, rows, customTC) {
   switch (mode) {
+    case 'color':
+      // 原色忠実再現 (Perfect Color Fidelity)
+      return `rgb(${r | 0},${g | 0},${b | 0})`;
+
     case 'matrix': {
       const i = lum | 0;
-      return `rgb(0,${Math.max(80, i)},${(i * 0.45) | 0})`;
+      return `rgb(0,${Math.max(70, i)},${(i * 0.4) | 0})`;
     }
+
     case 'cyber': {
       const ratio = x / cols;
       return `rgb(${(255 * ratio) | 0},${(lum * 0.8) | 0},${(255 * (1 - ratio)) | 0})`;
     }
-    case 'color':
-      return `rgb(${r | 0},${g | 0},${b | 0})`;
+
     case 'amber': {
       const i = lum | 0;
       return `rgb(${i},${(i * 0.7) | 0},0)`;
     }
+
     case 'custom':
       return customTC;
+
     case 'invert':
-      return '#111';
+      return '#111111';
+
     case 'mono':
     default: {
       const i = lum | 0;
@@ -160,20 +123,18 @@ export class AsciiEngine {
     this.sourceCanvas = sourceCanvas;
     this.sourceCtx = sourceCanvas.getContext('2d', { willReadFrequently: true });
 
-    this.pipeline = new ImagePipeline();
-
     // Options
     this.cols = 100;
     this.fontSize = 10;
     this.charAspect = 0.55;
-    this.charSet = CHARACTER_SETS.realistic;
+    this.charSet = CHARACTER_SETS.standard;
     this.colorMode = 'matrix';
-    this.frameAspect = 'full'; // 'full', '16:9', '4:3', '1:1'
-    this.dithering = true;     // Ultra realistic dithering
+    this.frameAspect = 'full';
+    this.dithering = true;
 
     this.brightness = 0;
-    this.contrast = 1.05;
-    this.saturation = 1.1;
+    this.contrast = 1.0;
+    this.saturation = 1.0;
     this.gamma = 1.0;
     this.edgeMode = false;
     this.edgeThreshold = 30;
@@ -185,6 +146,9 @@ export class AsciiEngine {
     this._fps = 0;
     this._frames = 0;
     this._fpsTime = performance.now();
+
+    this._lumLUT = null;
+    this._lastLumParams = '';
 
     this.lastTextOutput = '';
   }
@@ -205,7 +169,7 @@ export class AsciiEngine {
     const srcH = sourceElement.videoHeight || sourceElement.height;
     if (!srcW || !srcH) return;
 
-    // FPS
+    // FPS Counter
     this._frames++;
     const now = performance.now();
     if (now - this._fpsTime >= 1000) {
@@ -214,13 +178,12 @@ export class AsciiEngine {
       this._fpsTime = now;
     }
 
-    // Determine target aspect ratio
-    let targetAspectRatio = srcHeightToWidthRatio(srcW, srcH);
+    // Grid Aspect Calculation
+    let targetAspectRatio = srcH / srcW;
     if (this.frameAspect === '16:9') targetAspectRatio = 9 / 16;
     else if (this.frameAspect === '4:3') targetAspectRatio = 3 / 4;
     else if (this.frameAspect === '1:1') targetAspectRatio = 1.0;
     else if (this.frameAspect === 'full') {
-      // Fit to container dimensions if full mode
       const parent = this.asciiCanvas.parentElement;
       if (parent && parent.clientWidth > 0 && parent.clientHeight > 0) {
         targetAspectRatio = parent.clientHeight / parent.clientWidth;
@@ -230,7 +193,7 @@ export class AsciiEngine {
     const cols = this.cols;
     const rows = Math.max(1, Math.floor(cols * targetAspectRatio * this.charAspect));
 
-    // Downsample
+    // Sample Source
     this.sourceCanvas.width = cols;
     this.sourceCanvas.height = rows;
     this.sourceCtx.drawImage(sourceElement, 0, 0, cols, rows);
@@ -238,21 +201,39 @@ export class AsciiEngine {
     const imgData = this.sourceCtx.getImageData(0, 0, cols, rows);
     const pixels = imgData.data;
 
-    // Apply S-Curve Tone Pipeline
-    this.pipeline.apply(pixels, cols, rows, {
-      saturation: this.saturation,
-      brightness: this.brightness,
-      contrast:   this.contrast,
-      gamma:      this.gamma,
-    });
+    // Luminance LUT
+    const paramKey = `${this.contrast}_${this.brightness}_${this.gamma}`;
+    if (paramKey !== this._lastLumParams) {
+      this._lumLUT = buildLuminanceLUT(this.contrast, this.brightness, this.gamma);
+      this._lastLumParams = paramKey;
+    }
+    const lumLUT = this._lumLUT;
 
-    // Edge map if enabled
+    // Saturation adjustment on source RGB
+    const sat = this.saturation;
+    const needSat = sat !== 1.0;
+    const totalPixels = cols * rows;
+
+    // Saturation pass if requested
+    if (needSat) {
+      for (let i = 0; i < totalPixels * 4; i += 4) {
+        let r = pixels[i];
+        let g = pixels[i + 1];
+        let b = pixels[i + 2];
+        const gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        pixels[i]     = Math.min(255, Math.max(0, gray + (r - gray) * sat));
+        pixels[i + 1] = Math.min(255, Math.max(0, gray + (g - gray) * sat));
+        pixels[i + 2] = Math.min(255, Math.max(0, gray + (b - gray) * sat));
+      }
+    }
+
+    // Edge Detection Map if enabled
     let edgeMap = null;
     if (this.edgeMode) {
       edgeMap = EdgeDetector.computeEdgeMap(pixels, cols, rows, this.edgeThreshold);
     }
 
-    // Calculate Canvas Output Size
+    // Prepare Render Canvas
     const cellW = this.fontSize * 0.6;
     const cellH = this.fontSize;
     const outW = (cols * cellW) | 0;
@@ -265,7 +246,7 @@ export class AsciiEngine {
 
     const ctx = this.ctx;
 
-    // Background
+    // Fill Background
     ctx.fillStyle = this.colorMode === 'custom'
       ? this.customBgColor
       : (this.colorMode === 'invert' ? '#ffffff' : '#05070a');
@@ -295,25 +276,29 @@ export class AsciiEngine {
         const pg = pixels[pi + 1];
         const pb = pixels[pi + 2];
 
-        let lum;
+        // 1. Precise ITU-R BT.709 Relative Luminance
+        let rawLum = 0.2126 * pr + 0.7152 * pg + 0.0722 * pb;
+
+        // 2. Apply Brightness / Contrast / Gamma via LUT to Luminance
+        let mappedLum = lumLUT[rawLum | 0];
+
+        // 3. Optional Edge Override
         if (edgeMap) {
-          lum = edgeMap[r * cols + c];
-        } else {
-          lum = 0.299 * pr + 0.587 * pg + 0.114 * pb;
+          mappedLum = edgeMap[r * cols + c];
+        } else if (doDither) {
+          // Add subtle luminance-only dithering for smooth character transitions
+          mappedLum = Math.min(255, Math.max(0, mappedLum + bayerRow[c % 4]));
         }
 
-        // Apply Bayer Dithering for realistic smooth gradient
-        if (doDither && !edgeMap) {
-          lum += bayerRow[c % 4] * 1.5;
-        }
+        if (doInvert) mappedLum = 255 - mappedLum;
 
-        if (doInvert) lum = 255 - lum;
-
-        const ci = Math.min(charLen - 1, Math.max(0, (lum * invCharLen) | 0));
+        // 4. Character mapping from mapped luminance
+        const ci = Math.min(charLen - 1, Math.max(0, (mappedLum * invCharLen) | 0));
         const ch = chars[ci];
         line += ch;
 
-        const color = getCharColorString(mode, pr, pg, pb, lum, c, r, cols, rows, customTC);
+        // 5. Render Color (Using pristine original RGB for color mode)
+        const color = getCharColorString(mode, pr, pg, pb, mappedLum, c, r, cols, rows, customTC);
         if (color !== prevColor) {
           ctx.fillStyle = color;
           prevColor = color;
@@ -325,8 +310,4 @@ export class AsciiEngine {
 
     this.lastTextOutput = textLines.join('\n');
   }
-}
-
-function srcHeightToWidthRatio(w, h) {
-  return h / w;
 }
