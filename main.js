@@ -1,19 +1,15 @@
 import { AsciiEngine, CHARACTER_SETS } from './asciiEngine.js';
 import { CameraManager } from './cameraManager.js';
 import { downloadPng, downloadTxt, copyTextToClipboard } from './exporter.js';
-import { registerSW } from 'virtual:pwa-register';
 
 document.addEventListener('DOMContentLoaded', () => {
 
-  // ═══ PWA Auto Registration ═══
-  const updateSW = registerSW({
-    onNeedRefresh() {
-      toast('新しいバージョンが利用可能です');
-    },
-    onOfflineReady() {
-      toast('オフラインでも使用可能です');
-    },
-  });
+  // ═══ PWA Vanilla Registration ═══
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js')
+      .then(() => console.log('Service Worker Registered'))
+      .catch((err) => console.log('Service Worker Failed:', err));
+  }
 
   let deferredPrompt = null;
   const btnInstall = document.getElementById('btnInstall');
