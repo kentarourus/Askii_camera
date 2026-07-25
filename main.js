@@ -1,42 +1,51 @@
 import { AsciiEngine, CHARACTER_SETS } from './asciiEngine.js';
 import { CameraManager } from './cameraManager.js';
 import { downloadPng, downloadTxt, copyTextToClipboard } from './exporter.js';
+import { registerSW } from 'virtual:pwa-register';
 
 document.addEventListener('DOMContentLoaded', () => {
 
-  // ═══ PWA ═══
+  // ═══ PWA Auto Registration ═══
+  const updateSW = registerSW({
+    onNeedRefresh() {
+      toast('新しいバージョンが利用可能です');
+    },
+    onOfflineReady() {
+      toast('オフラインでも使用可能です');
+    },
+  });
+
   let deferredPrompt = null;
   const btnInstall = document.getElementById('btnInstall');
   const iosModal = document.getElementById('iosModal');
 
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register(new URL('./sw.js', import.meta.url).href)
-      .then(() => console.log('SW registered'))
-      .catch(e => console.log('SW error:', e));
-  }
-
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
-    btnInstall.classList.remove('hidden');
+    if (btnInstall) btnInstall.classList.remove('hidden');
   });
 
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
-  if (!isStandalone) btnInstall.classList.remove('hidden');
+  if (!isStandalone && btnInstall) btnInstall.classList.remove('hidden');
 
-  btnInstall.addEventListener('click', async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') { toast('アプリをインストールしました'); btnInstall.classList.add('hidden'); }
-      deferredPrompt = null;
-    } else if (isIOS) {
-      iosModal.classList.add('open');
-    } else {
-      toast('ブラウザメニューから「ホーム画面に追加」でインストールできます');
-    }
-  });
+  if (btnInstall) {
+    btnInstall.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          toast('アプリをインストールしました！');
+          btnInstall.classList.add('hidden');
+        }
+        deferredPrompt = null;
+      } else if (isIOS) {
+        iosModal.classList.add('open');
+      } else {
+        toast('ブラウザのメニューから「ホーム画面に追加」または「アプリをインストール」を選択できます');
+      }
+    });
+  }
 
   document.getElementById('btnCloseIos').addEventListener('click', () => iosModal.classList.remove('open'));
   document.getElementById('btnIosOk').addEventListener('click', () => iosModal.classList.remove('open'));
