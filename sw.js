@@ -1,17 +1,17 @@
 const CACHE_NAME = 'ascii-vision-v5';
 const ASSETS = [
-  '/Askii_camera/',
-  '/Askii_camera/index.html',
-  '/Askii_camera/style.css',
-  '/Askii_camera/main.js',
-  '/Askii_camera/asciiEngine.js',
-  '/Askii_camera/cameraManager.js',
-  '/Askii_camera/exporter.js',
-  '/Askii_camera/manifest.json',
-  '/Askii_camera/icon.svg',
-  '/Askii_camera/pwa-192x192.png',
-  '/Askii_camera/pwa-512x512.png',
-  '/Askii_camera/apple-touch-icon.png'
+  './',
+  './index.html',
+  './style.css',
+  './main.js',
+  './asciiEngine.js',
+  './cameraManager.js',
+  './exporter.js',
+  './manifest.json',
+  './icon.svg',
+  './pwa-192x192.png',
+  './pwa-512x512.png',
+  './apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (e) => {
