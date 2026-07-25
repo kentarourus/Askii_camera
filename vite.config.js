@@ -11,24 +11,42 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['icon.svg', 'apple-touch-icon.png'],
+      includeAssets: ['icon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
         name: 'ASCII VISION - アスキーカメラ',
         short_name: 'ASCII Vision',
-        description: 'リアルタイムアスキーアートカメラ & 画像変換 PWA',
+        description: 'リアルタイム アスキーアート カメラ PWA アプリ',
         theme_color: '#000000',
         background_color: '#000000',
         display: 'standalone',
         display_override: ['standalone', 'fullscreen', 'minimal-ui'],
         orientation: 'any',
-        start_url: './index.html',
+        start_url: './',
         scope: './',
         icons: [
           {
+            src: 'pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
+          },
+          {
             src: 'icon.svg',
-            sizes: '192x192 512x512',
+            sizes: 'any',
             type: 'image/svg+xml',
-            purpose: 'any maskable'
+            purpose: 'any'
           }
         ]
       },
