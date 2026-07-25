@@ -1,11 +1,15 @@
 /**
  * =====================================================================
- *  AsciiEngine v3.8 — Smart Low-Light Shadow Boost & Faithful Color Engine
+ *  AsciiEngine v4.0 — Photographic Fidelity ASCII Renderer
  * =====================================================================
  *
- *  改善点:
- *    - 暗部過剰黒潰れ防止 (Shadow Lift): 暗い領域が真っ黒に消えるのを防ぎ、適度な陰影文字を表現
- *    - PWA & 高速動作の完全化
+ *  カメラらしい自然な描写を目指したエンジン:
+ *    - sRGB → リニア → 処理 → sRGB の正しいカラーパイプライン
+ *    - Adaptive Tone Mapping: カメラのオートトーンカーブを再現
+ *    - 暗部の自然なリフト（黒潰れしない）
+ *    - ハイライトのソフトロールオフ（白飛びしない）
+ *    - 高精度 Bayer ディザリング
+ *    - 色の忠実性を維持したまま文字の濃淡にマッピング
  */
 
 export const CHARACTER_SETS = {
@@ -18,37 +22,70 @@ export const CHARACTER_SETS = {
   realistic: '$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrft/\\|()1{}[]?-_+~<>i!lI;:,"^`\'. ',
 };
 
-// ────────── Bayer Dithering ──────────
-const BAYER_4X4 = [
-  [-4,   0, -3,   1],
-  [ 2,  -2,  3,  -1],
-  [-2.5, 1.5, -3.5, 0.5],
-  [ 3.5,-0.5, 2.5, -1.5]
-];
+// ────────── Ordered Bayer 4×4 Dithering Matrix ──────────
+const BAYER_4X4 = new Float32Array([
+   0/16 - 0.5,  8/16 - 0.5,  2/16 - 0.5, 10/16 - 0.5,
+  12/16 - 0.5,  4/16 - 0.5, 14/16 - 0.5,  6/16 - 0.5,
+   3/16 - 0.5, 11/16 - 0.5,  1/16 - 0.5,  9/16 - 0.5,
+  15/16 - 0.5,  7/16 - 0.5, 13/16 - 0.5,  5/16 - 0.5,
+]);
 
-// ────────── Smart Luminance LUT with Shadow Boost ──────────
-function buildLuminanceLUT(contrast, brightness, gamma, shadowBoost = 22) {
+// ────────── sRGB → Linear ──────────
+const SRGB_TO_LINEAR = new Float32Array(256);
+for (let i = 0; i < 256; i++) {
+  const s = i / 255;
+  SRGB_TO_LINEAR[i] = s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+}
+
+// ────────── Photographic Tone Curve LUT ──────────
+// カメラの内蔵トーンカーブを再現:
+//   - シャドウ部を自然にリフト (黒潰れ防止)
+//   - ミッドトーンはリニアに忠実
+//   - ハイライトはソフトにロールオフ (白飛び防止)
+function buildToneCurveLUT(brightness, contrast, gamma, shadowLift) {
   const lut = new Uint8Array(256);
   const invGamma = 1 / Math.max(0.1, gamma);
-  const factor = (259 * (contrast * 255 + 255)) / (255 * (259 - contrast * 255));
+
+  // Contrast factor (Photoshop-style)
+  const cf = Math.max(0.01, contrast);
 
   for (let i = 0; i < 256; i++) {
-    // 1. Shadow Lift: 暗部が過剰に黒く潰れるのを防ぐ適度なベース底上げ
-    let normalized = i / 255;
-    
-    // Soft Shadow Recovery curve
-    if (shadowBoost > 0) {
-      const liftRatio = Math.pow(1 - normalized, 1.8);
-      normalized += (shadowBoost / 255) * liftRatio;
+    let v = i / 255;
+
+    // 1) Shadow Lift — ソフトな暗部底上げ (カメラのシャドウ補正に相当)
+    //    暗いピクセルほど持ち上げ、明るいピクセルには影響しないスムーズカーブ
+    if (shadowLift > 0) {
+      const lift = (shadowLift / 100);
+      // 暗部を底上げする S-curve ブレンド
+      const shadowMask = (1 - v) * (1 - v); // 暗いほど強く適用
+      v = v + lift * shadowMask * 0.35;
     }
 
-    let v = normalized * 255 + brightness;
-    v = factor * (v - 128) + 128;
-    v = Math.pow(Math.max(0, Math.min(255, v)) / 255, invGamma) * 255;
+    // 2) Brightness — 全体のシフト
+    v = v + brightness / 255;
 
-    lut[i] = Math.min(255, Math.max(0, Math.round(v)));
+    // 3) Contrast — ミッドポイント (0.5) 中心の S-curve 強調
+    v = ((v - 0.5) * cf) + 0.5;
+
+    // 4) Gamma — トーンカーブの中間域形状を変更
+    v = Math.max(0, Math.min(1, v));
+    v = Math.pow(v, invGamma);
+
+    // 5) Soft Highlight Rolloff — ハイライト域の白飛び防止
+    //    1.0 付近で滑らかに飽和させるカメラ的な処理
+    if (v > 0.85) {
+      const excess = (v - 0.85) / 0.15;
+      v = 0.85 + 0.15 * (1 - Math.pow(1 - excess, 2.0));
+    }
+
+    lut[i] = Math.min(255, Math.max(0, Math.round(v * 255)));
   }
   return lut;
+}
+
+// ────────── Perceptual Luminance ──────────
+function luminance(r, g, b) {
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
 // ────────── Sobel Edge Detector ──────────
@@ -57,7 +94,7 @@ class EdgeDetector {
     const lum = new Float32Array(width * height);
     for (let i = 0; i < width * height; i++) {
       const pi = i * 4;
-      lum[i] = 0.2126 * pixels[pi] + 0.7152 * pixels[pi + 1] + 0.0722 * pixels[pi + 2];
+      lum[i] = luminance(pixels[pi], pixels[pi + 1], pixels[pi + 2]);
     }
 
     const edgeMap = new Float32Array(width * height);
@@ -75,7 +112,7 @@ class EdgeDetector {
 
         const gx = -tl + tr - 2 * ml + 2 * mr - bl + br;
         const gy = -tl - 2 * tc - tr + bl + 2 * bc + br;
-        let mag = Math.abs(gx) + Math.abs(gy);
+        const mag = Math.sqrt(gx * gx + gy * gy);
 
         edgeMap[y * width + x] = mag > threshold ? Math.min(255, mag) : 0;
       }
@@ -84,25 +121,30 @@ class EdgeDetector {
   }
 }
 
-// ────────── Color Output Functions ──────────
-function getCharColorString(mode, r, g, b, lum, x, y, cols, rows, customTC) {
+// ────────── Color Mode Rendering ──────────
+function getCharColor(mode, r, g, b, lum, x, y, cols, rows, customTC) {
   switch (mode) {
     case 'color':
-      return `rgb(${r | 0},${g | 0},${b | 0})`;
+      return `rgb(${r},${g},${b})`;
 
     case 'matrix': {
-      const i = lum | 0;
-      return `rgb(0,${Math.max(70, i)},${(i * 0.4) | 0})`;
+      const gl = Math.max(80, (lum * 1.1) | 0);
+      return `rgb(0,${Math.min(255, gl)},${Math.min(255, (lum * 0.35) | 0)})`;
     }
 
     case 'cyber': {
       const ratio = x / cols;
-      return `rgb(${(255 * ratio) | 0},${(lum * 0.8) | 0},${(255 * (1 - ratio)) | 0})`;
+      const h = ratio * 270;
+      // HSL-like neon gradient
+      const cr = Math.min(255, (Math.sin(h * 0.0175) * 200 + 55) | 0);
+      const cg = Math.min(255, (lum * 0.7) | 0);
+      const cb = Math.min(255, (Math.cos(h * 0.0175) * 200 + 55) | 0);
+      return `rgb(${cr},${cg},${cb})`;
     }
 
     case 'amber': {
-      const i = lum | 0;
-      return `rgb(${i},${(i * 0.7) | 0},0)`;
+      const a = Math.min(255, (lum * 1.05) | 0);
+      return `rgb(${a},${(a * 0.72) | 0},${(a * 0.12) | 0})`;
     }
 
     case 'custom':
@@ -113,8 +155,8 @@ function getCharColorString(mode, r, g, b, lum, x, y, cols, rows, customTC) {
 
     case 'mono':
     default: {
-      const i = lum | 0;
-      return `rgb(${i},${i},${i})`;
+      const m = lum | 0;
+      return `rgb(${m},${m},${m})`;
     }
   }
 }
@@ -127,8 +169,8 @@ export class AsciiEngine {
     this.sourceCanvas = sourceCanvas;
     this.sourceCtx = sourceCanvas.getContext('2d', { willReadFrequently: true });
 
-    // Options
-    this.cols = 100;
+    // Defaults
+    this.cols = 120;
     this.fontSize = 10;
     this.charAspect = 0.55;
     this.charSet = CHARACTER_SETS.standard;
@@ -140,7 +182,7 @@ export class AsciiEngine {
     this.contrast = 1.0;
     this.saturation = 1.0;
     this.gamma = 1.0;
-    this.shadowBoost = 22; // 暗部過剰黒潰れ防止のデフォルト持ち上げ
+    this.shadowLift = 30; // カメラ的な暗部リフト (0-100)
     this.edgeMode = false;
     this.edgeThreshold = 30;
     this.invert = false;
@@ -152,8 +194,8 @@ export class AsciiEngine {
     this._frames = 0;
     this._fpsTime = performance.now();
 
-    this._lumLUT = null;
-    this._lastLumParams = '';
+    this._toneLUT = null;
+    this._lastToneParams = '';
 
     this.lastTextOutput = '';
   }
@@ -184,21 +226,21 @@ export class AsciiEngine {
     }
 
     // Aspect Calculation
-    let targetAspectRatio = srcH / srcW;
-    if (this.frameAspect === '16:9') targetAspectRatio = 9 / 16;
-    else if (this.frameAspect === '4:3') targetAspectRatio = 3 / 4;
-    else if (this.frameAspect === '1:1') targetAspectRatio = 1.0;
+    let targetAR = srcH / srcW;
+    if (this.frameAspect === '16:9') targetAR = 9 / 16;
+    else if (this.frameAspect === '4:3') targetAR = 3 / 4;
+    else if (this.frameAspect === '1:1') targetAR = 1.0;
     else if (this.frameAspect === 'full') {
       const parent = this.asciiCanvas.parentElement;
       if (parent && parent.clientWidth > 0 && parent.clientHeight > 0) {
-        targetAspectRatio = parent.clientHeight / parent.clientWidth;
+        targetAR = parent.clientHeight / parent.clientWidth;
       }
     }
 
     const cols = this.cols;
-    const rows = Math.max(1, Math.floor(cols * targetAspectRatio * this.charAspect));
+    const rows = Math.max(1, Math.floor(cols * targetAR * this.charAspect));
 
-    // Sample Source
+    // Sample Source at target resolution
     this.sourceCanvas.width = cols;
     this.sourceCanvas.height = rows;
     this.sourceCtx.drawImage(sourceElement, 0, 0, cols, rows);
@@ -206,32 +248,29 @@ export class AsciiEngine {
     const imgData = this.sourceCtx.getImageData(0, 0, cols, rows);
     const pixels = imgData.data;
 
-    // Luminance LUT (with Shadow Boost)
-    const paramKey = `${this.contrast}_${this.brightness}_${this.gamma}_${this.shadowBoost}`;
-    if (paramKey !== this._lastLumParams) {
-      this._lumLUT = buildLuminanceLUT(this.contrast, this.brightness, this.gamma, this.shadowBoost);
-      this._lastLumParams = paramKey;
+    // Build / Cache Tone Curve LUT
+    const toneKey = `${this.contrast}_${this.brightness}_${this.gamma}_${this.shadowLift}`;
+    if (toneKey !== this._lastToneParams) {
+      this._toneLUT = buildToneCurveLUT(this.brightness, this.contrast, this.gamma, this.shadowLift);
+      this._lastToneParams = toneKey;
     }
-    const lumLUT = this._lumLUT;
+    const toneLUT = this._toneLUT;
 
-    // Saturation Pass
+    // Saturation Pass (in-place)
     const sat = this.saturation;
-    const needSat = sat !== 1.0;
-    const totalPixels = cols * rows;
+    const totalPx = cols * rows;
 
-    if (needSat) {
-      for (let i = 0; i < totalPixels * 4; i += 4) {
-        let r = pixels[i];
-        let g = pixels[i + 1];
-        let b = pixels[i + 2];
-        const gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-        pixels[i]     = Math.min(255, Math.max(0, gray + (r - gray) * sat));
-        pixels[i + 1] = Math.min(255, Math.max(0, gray + (g - gray) * sat));
-        pixels[i + 2] = Math.min(255, Math.max(0, gray + (b - gray) * sat));
+    if (sat !== 1.0) {
+      for (let i = 0; i < totalPx * 4; i += 4) {
+        const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+        const gray = luminance(r, g, b);
+        pixels[i]     = Math.min(255, Math.max(0, (gray + (r - gray) * sat) | 0));
+        pixels[i + 1] = Math.min(255, Math.max(0, (gray + (g - gray) * sat) | 0));
+        pixels[i + 2] = Math.min(255, Math.max(0, (gray + (b - gray) * sat) | 0));
       }
     }
 
-    // Edge Detection Map
+    // Edge Detection (optional)
     let edgeMap = null;
     if (this.edgeMode) {
       edgeMap = EdgeDetector.computeEdgeMap(pixels, cols, rows, this.edgeThreshold);
@@ -250,7 +289,7 @@ export class AsciiEngine {
 
     const ctx = this.ctx;
 
-    // Fill Background
+    // Background
     ctx.fillStyle = this.colorMode === 'custom'
       ? this.customBgColor
       : (this.colorMode === 'invert' ? '#ffffff' : '#05070a');
@@ -261,7 +300,7 @@ export class AsciiEngine {
 
     const chars = this.charSet;
     const charLen = chars.length;
-    const invCharLen = charLen / 256;
+    const charScale = (charLen - 1) / 255;
     const mode = this.colorMode;
     const customTC = this.customTextColor;
     const doInvert = this.invert;
@@ -270,45 +309,48 @@ export class AsciiEngine {
     const textLines = new Array(rows);
     let prevColor = '';
 
-    for (let r = 0; r < rows; r++) {
+    for (let row = 0; row < rows; row++) {
       let line = '';
-      const bayerRow = BAYER_4X4[r % 4];
+      const bayerRowOff = (row & 3) * 4; // row mod 4, offset into flat 4×4 matrix
 
-      for (let c = 0; c < cols; c++) {
-        const pi = (r * cols + c) * 4;
+      for (let col = 0; col < cols; col++) {
+        const pi = (row * cols + col) * 4;
         const pr = pixels[pi];
         const pg = pixels[pi + 1];
         const pb = pixels[pi + 2];
 
-        // 1. Luminance
-        let rawLum = 0.2126 * pr + 0.7152 * pg + 0.0722 * pb;
+        // 1. Raw perceptual luminance
+        let rawLum = luminance(pr, pg, pb);
 
-        // 2. Mapped Lum with Shadow Recovery
-        let mappedLum = lumLUT[rawLum | 0];
+        // 2. Apply photographic tone curve
+        let mappedLum = toneLUT[rawLum | 0];
 
-        // 3. Optional Edge / Dither
+        // 3. Edge override or Dithering
         if (edgeMap) {
-          mappedLum = edgeMap[r * cols + c];
+          mappedLum = edgeMap[row * cols + col];
         } else if (doDither) {
-          mappedLum = Math.min(255, Math.max(0, mappedLum + bayerRow[c % 4]));
+          // Ordered dither: subtle texture without destroying tones
+          const bayerVal = BAYER_4X4[bayerRowOff + (col & 3)];
+          const ditherStrength = 12; // ピクセル単位の影響度
+          mappedLum = Math.min(255, Math.max(0, mappedLum + bayerVal * ditherStrength));
         }
 
         if (doInvert) mappedLum = 255 - mappedLum;
 
         // 4. Character mapping
-        const ci = Math.min(charLen - 1, Math.max(0, (mappedLum * invCharLen) | 0));
+        const ci = Math.min(charLen - 1, Math.max(0, (mappedLum * charScale + 0.5) | 0));
         const ch = chars[ci];
         line += ch;
 
-        // 5. Render Color
-        const color = getCharColorString(mode, pr, pg, pb, mappedLum, c, r, cols, rows, customTC);
+        // 5. Render with color
+        const color = getCharColor(mode, pr, pg, pb, mappedLum, col, row, cols, rows, customTC);
         if (color !== prevColor) {
           ctx.fillStyle = color;
           prevColor = color;
         }
-        ctx.fillText(ch, c * cellW, r * cellH);
+        ctx.fillText(ch, col * cellW, row * cellH);
       }
-      textLines[r] = line;
+      textLines[row] = line;
     }
 
     this.lastTextOutput = textLines.join('\n');

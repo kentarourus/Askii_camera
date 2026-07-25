@@ -3,417 +3,245 @@ import { CameraManager } from './cameraManager.js';
 import { downloadPng, downloadTxt, copyTextToClipboard } from './exporter.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-  // PWA Service Worker Registration
+
+  // ═══ PWA ═══
   let deferredPrompt = null;
-  const btnInstallApp = document.getElementById('btnInstallApp');
-  const iosInstallModal = document.getElementById('iosInstallModal');
-  const btnCloseIosModal = document.getElementById('btnCloseIosModal');
-  const btnConfirmIosGuide = document.getElementById('btnConfirmIosGuide');
+  const btnInstall = document.getElementById('btnInstall');
+  const iosModal = document.getElementById('iosModal');
 
   if ('serviceWorker' in navigator) {
-    const swPath = new URL('./sw.js', import.meta.url).href;
-    navigator.serviceWorker.register(swPath)
-      .then(() => console.log('Service Worker Registered'))
-      .catch(err => console.log('SW Registration failed: ', err));
+    navigator.serviceWorker.register(new URL('./sw.js', import.meta.url).href)
+      .then(() => console.log('SW registered'))
+      .catch(e => console.log('SW error:', e));
   }
 
-  // PWA Install Prompt Listener
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
-    if (btnInstallApp) btnInstallApp.classList.remove('hidden');
+    btnInstall.classList.remove('hidden');
   });
 
-  if (btnInstallApp) {
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (!isStandalone) btnInstall.classList.remove('hidden');
 
-    if (!isStandalone) btnInstallApp.classList.remove('hidden');
+  btnInstall.addEventListener('click', async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') { toast('アプリをインストールしました'); btnInstall.classList.add('hidden'); }
+      deferredPrompt = null;
+    } else if (isIOS) {
+      iosModal.classList.add('open');
+    } else {
+      toast('ブラウザメニューから「ホーム画面に追加」でインストールできます');
+    }
+  });
 
-    btnInstallApp.addEventListener('click', async () => {
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') {
-          showToast('アプリをインストールしました！');
-          btnInstallApp.classList.add('hidden');
-        }
-        deferredPrompt = null;
-      } else if (isIOS) {
-        iosInstallModal.classList.add('open');
-      } else {
-        showToast('ブラウザメニューから「ホーム画面に追加」でアプリ化できます');
-      }
-    });
-  }
+  document.getElementById('btnCloseIos').addEventListener('click', () => iosModal.classList.remove('open'));
+  document.getElementById('btnIosOk').addEventListener('click', () => iosModal.classList.remove('open'));
 
-  if (btnCloseIosModal) btnCloseIosModal.addEventListener('click', () => iosInstallModal.classList.remove('open'));
-  if (btnConfirmIosGuide) btnConfirmIosGuide.addEventListener('click', () => iosInstallModal.classList.remove('open'));
-
-  // DOM Elements
+  // ═══ Core Elements ═══
   const asciiCanvas = document.getElementById('asciiCanvas');
   const sourceCanvas = document.getElementById('sourceCanvas');
-  const webcamVideo = document.getElementById('webcamVideo');
-
+  const webcam = document.getElementById('webcam');
   const fpsBadge = document.getElementById('fpsBadge');
-  const cameraGrid = document.getElementById('cameraGrid');
+  const gridOverlay = document.getElementById('gridOverlay');
   const shutterFlash = document.getElementById('shutterFlash');
-  const canvasContainer = document.getElementById('canvasContainer');
-  const dropOverlay = document.getElementById('dropOverlay');
+  const dropZone = document.getElementById('dropZone');
+  const viewfinder = document.getElementById('viewfinder');
+  const toastEl = document.getElementById('toast');
 
-  // Aspect Ratio Button
-  const btnAspect = document.getElementById('btnAspect');
-  const aspectLabel = document.getElementById('aspectLabel');
-  const aspectModes = ['FULL', '16:9', '4:3', '1:1'];
-  let currentAspectIdx = 0;
-
-  // Buttons & Controls
-  const btnToggleGrid = document.getElementById('btnToggleGrid');
-  const btnSwitchCamera = document.getElementById('btnSwitchCamera');
-  const btnToggleDrawer = document.getElementById('btnToggleDrawer');
-  const btnFullscreen = document.getElementById('btnFullscreen');
-  const btnShutter = document.getElementById('btnShutter');
-  const btnPause = document.getElementById('btnPause');
-  const pauseIcon = document.getElementById('pauseIcon');
-  const fileInput = document.getElementById('fileInput');
-
-  // Mode Ribbon
-  const modeRibbon = document.getElementById('modeRibbon');
-
-  // Adjustment Drawer
-  const adjustmentDrawer = document.getElementById('adjustmentDrawer');
-  const btnCloseDrawer = document.getElementById('btnCloseDrawer');
-
-  // Form Controls
-  const charSetSelect = document.getElementById('charSetSelect');
-  const customCharGroup = document.getElementById('customCharGroup');
-  const customCharInput = document.getElementById('customCharInput');
-
-  const customColorRow = document.getElementById('customColorRow');
-  const bgColorInput = document.getElementById('bgColorInput');
-  const textColorInput = document.getElementById('textColorInput');
-
-  const ditherCheckbox = document.getElementById('ditherCheckbox');
-  const shadowBoostSlider = document.getElementById('shadowBoostSlider');
-  const shadowBoostVal = document.getElementById('shadowBoostVal');
-
-  const saturationSlider = document.getElementById('saturationSlider');
-  const saturationVal = document.getElementById('saturationVal');
-
-  const gammaSlider = document.getElementById('gammaSlider');
-  const gammaVal = document.getElementById('gammaVal');
-
-  const brightnessSlider = document.getElementById('brightnessSlider');
-  const brightnessVal = document.getElementById('brightnessVal');
-
-  const contrastSlider = document.getElementById('contrastSlider');
-  const contrastVal = document.getElementById('contrastVal');
-
-  const edgeCheckbox = document.getElementById('edgeCheckbox');
-  const edgeThresholdGroup = document.getElementById('edgeThresholdGroup');
-  const edgeThresholdSlider = document.getElementById('edgeThresholdSlider');
-  const edgeThresholdVal = document.getElementById('edgeThresholdVal');
-
-  const invertCheckbox = document.getElementById('invertCheckbox');
-
-  const resolutionSlider = document.getElementById('resolutionSlider');
-  const resolutionVal = document.getElementById('resolutionVal');
-
-  const fontSizeSlider = document.getElementById('fontSizeSlider');
-  const fontSizeVal = document.getElementById('fontSizeVal');
-
-  const charAspectSlider = document.getElementById('charAspectSlider');
-  const charAspectVal = document.getElementById('charAspectVal');
-
-  // Capture Modal Elements
-  const captureModal = document.getElementById('captureModal');
-  const btnCloseModal = document.getElementById('btnCloseModal');
-  const modalPreviewCanvas = document.getElementById('modalPreviewCanvas');
-  const btnSnapPng = document.getElementById('btnSnapPng');
-  const btnSnapTxt = document.getElementById('btnSnapTxt');
-  const btnCopyTxt = document.getElementById('btnCopyTxt');
-
-  const toast = document.getElementById('toast');
-
-  // State
-  let isPaused = false;
-  let animFrameId = null;
-  let currentSource = null;
-  let activeColorMode = 'matrix';
-
-  // Initialize Engine & Camera
+  // ═══ Engine & Camera ═══
   const engine = new AsciiEngine(asciiCanvas, sourceCanvas);
+  let currentSource = null;
+  let isPaused = false;
+  let animId = null;
+  let activeMode = 'matrix';
 
-  const cameraManager = new CameraManager(
-    webcamVideo,
-    (source, mode) => {
-      currentSource = source;
-      startLoop();
-      showToast(mode === 'camera' ? 'カメラ動作中' : 'メディア読み込み完了');
-    },
-    (errMsg) => {
-      showToast(errMsg);
-    }
+  const camera = new CameraManager(
+    webcam,
+    (src, mode) => { currentSource = src; startLoop(); toast(mode === 'camera' ? 'カメラ起動' : 'メディア読み込み完了'); },
+    (err) => toast(err)
   );
 
-  function updateEngineSettings() {
-    let charSet = CHARACTER_SETS[charSetSelect.value];
-    if (charSetSelect.value === 'custom') {
-      charSet = customCharInput.value || '@%#*+=-:. ';
-    }
-
-    const currentAspectMode = aspectModes[currentAspectIdx].toLowerCase();
-
-    engine.setOptions({
-      cols: parseInt(resolutionSlider.value, 10),
-      fontSize: parseInt(fontSizeSlider.value, 10),
-      charAspect: parseFloat(charAspectSlider.value),
-      charSet: charSet,
-      colorMode: activeColorMode,
-      frameAspect: currentAspectMode,
-      dithering: ditherCheckbox.checked,
-      shadowBoost: parseInt(shadowBoostSlider.value, 10),
-      brightness: parseInt(brightnessSlider.value, 10),
-      contrast: parseFloat(contrastSlider.value),
-      saturation: parseFloat(saturationSlider.value),
-      gamma: parseFloat(gammaSlider.value),
-      edgeMode: edgeCheckbox.checked,
-      edgeThreshold: parseInt(edgeThresholdSlider.value, 10),
-      invert: invertCheckbox.checked,
-      customBgColor: bgColorInput.value,
-      customTextColor: textColorInput.value
-    });
-  }
-
-  function renderFrame() {
+  // ═══ Render Loop ═══
+  function render() {
     if (!isPaused && currentSource) {
       engine.process(currentSource);
       fpsBadge.textContent = `${engine.getFps()} FPS`;
     }
-    animFrameId = requestAnimationFrame(renderFrame);
+    animId = requestAnimationFrame(render);
+  }
+  function startLoop() { if (!animId) render(); }
+
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    setTimeout(() => toastEl.classList.remove('show'), 2500);
   }
 
-  function startLoop() {
-    if (!animFrameId) {
-      renderFrame();
-    }
+  // ═══ Sync Settings → Engine ═══
+  const $ = (id) => document.getElementById(id);
+
+  function sync() {
+    const charSetKey = $('charSetSel').value;
+    let charSet = CHARACTER_SETS[charSetKey];
+    if (charSetKey === 'custom') charSet = $('customCharInput').value || '@%#*+=-:. ';
+
+    engine.setOptions({
+      cols:          +$('sCols').value,
+      fontSize:      +$('sFont').value,
+      charAspect:    +$('sAspect').value,
+      charSet,
+      colorMode:     activeMode,
+      frameAspect:   aspectModes[aspectIdx].toLowerCase(),
+      dithering:     $('chkDither').checked,
+      shadowLift:    +$('sShadow').value,
+      brightness:    +$('sBright').value,
+      contrast:      +$('sContrast').value,
+      saturation:    +$('sSat').value,
+      gamma:         +$('sGamma').value,
+      edgeMode:      $('chkEdge').checked,
+      edgeThreshold: +$('sEdge').value,
+      invert:        $('chkInvert').checked,
+      customBgColor: $('bgColor').value,
+      customTextColor: $('textColor').value,
+    });
   }
 
-  function showToast(msg) {
-    toast.textContent = msg;
-    toast.classList.add('show');
-    setTimeout(() => {
-      toast.classList.remove('show');
-    }, 2500);
-  }
+  // ═══ Aspect Ratio ═══
+  const aspectModes = ['FULL', '16:9', '4:3', '1:1'];
+  let aspectIdx = 0;
 
-  // Aspect Ratio Cycle
-  btnAspect.addEventListener('click', () => {
-    currentAspectIdx = (currentAspectIdx + 1) % aspectModes.length;
-    const modeName = aspectModes[currentAspectIdx];
-    aspectLabel.textContent = modeName;
-    showToast(`アスペクト比: ${modeName}`);
-    updateEngineSettings();
+  $('btnAspect').addEventListener('click', () => {
+    aspectIdx = (aspectIdx + 1) % aspectModes.length;
+    $('aspectLabel').textContent = aspectModes[aspectIdx];
+    toast(`比率: ${aspectModes[aspectIdx]}`);
+    sync();
   });
 
-  // Mode Ribbon Select
-  modeRibbon.addEventListener('click', (e) => {
-    const btn = e.target.closest('.mode-item');
-    if (!btn) return;
-
-    modeRibbon.querySelectorAll('.mode-item').forEach(el => el.classList.remove('active'));
-    btn.classList.add('active');
-
-    activeColorMode = btn.dataset.mode;
-    if (activeColorMode === 'custom') {
-      customColorRow.style.display = 'block';
-    } else {
-      customColorRow.style.display = 'none';
-    }
-    updateEngineSettings();
+  // ═══ Top Buttons ═══
+  $('btnGrid').addEventListener('click', () => {
+    gridOverlay.classList.toggle('hidden');
+    $('btnGrid').classList.toggle('on');
   });
 
-  // Native Shutter Trigger
-  btnShutter.addEventListener('click', () => {
-    shutterFlash.classList.add('flash-active');
-    setTimeout(() => {
-      shutterFlash.classList.remove('flash-active');
-    }, 100);
-
-    modalPreviewCanvas.width = asciiCanvas.width;
-    modalPreviewCanvas.height = asciiCanvas.height;
-    const ctx = modalPreviewCanvas.getContext('2d');
-    ctx.drawImage(asciiCanvas, 0, 0);
-
-    captureModal.classList.add('open');
+  $('btnFlip').addEventListener('click', async () => {
+    await camera.switchCamera();
+    toast('カメラ切替');
   });
 
-  btnCloseModal.addEventListener('click', () => {
-    captureModal.classList.remove('open');
-  });
+  $('btnSettings').addEventListener('click', () => $('settingsDrawer').classList.toggle('open'));
+  $('btnCloseDrawer').addEventListener('click', () => $('settingsDrawer').classList.remove('open'));
 
-  // Top Bar Buttons
-  btnToggleGrid.addEventListener('click', () => {
-    cameraGrid.classList.toggle('hidden');
-    btnToggleGrid.classList.toggle('active');
-  });
-
-  btnSwitchCamera.addEventListener('click', async () => {
-    await cameraManager.switchCamera();
-    showToast('カメラ切り替え完了');
-  });
-
-  btnToggleDrawer.addEventListener('click', () => {
-    adjustmentDrawer.classList.toggle('open');
-  });
-
-  btnCloseDrawer.addEventListener('click', () => {
-    adjustmentDrawer.classList.remove('open');
-  });
-
-  btnFullscreen.addEventListener('click', () => {
+  $('btnFullscreen').addEventListener('click', () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {
-        showToast('全画面表示に対応していません');
-      });
+      document.documentElement.requestFullscreen().catch(() => toast('全画面非対応'));
     } else {
       document.exitFullscreen();
     }
   });
 
-  btnPause.addEventListener('click', () => {
+  // ═══ Mode Ribbon ═══
+  $('modeRibbon').addEventListener('click', (e) => {
+    const chip = e.target.closest('.mode-chip');
+    if (!chip) return;
+    $('modeRibbon').querySelectorAll('.mode-chip').forEach(el => el.classList.remove('active'));
+    chip.classList.add('active');
+    activeMode = chip.dataset.mode;
+    $('customColorField').style.display = activeMode === 'custom' ? 'block' : 'none';
+    sync();
+  });
+
+  // ═══ Shutter ═══
+  $('btnShutter').addEventListener('click', () => {
+    shutterFlash.classList.add('active');
+    setTimeout(() => shutterFlash.classList.remove('active'), 100);
+    const pc = $('previewCanvas');
+    pc.width = asciiCanvas.width;
+    pc.height = asciiCanvas.height;
+    pc.getContext('2d').drawImage(asciiCanvas, 0, 0);
+    $('captureModal').classList.add('open');
+  });
+
+  $('btnCloseCapture').addEventListener('click', () => $('captureModal').classList.remove('open'));
+
+  // ═══ Pause ═══
+  $('btnPause').addEventListener('click', () => {
     isPaused = !isPaused;
-    if (isPaused) {
-      pauseIcon.innerHTML = '<path fill="currentColor" d="M8 5v14l11-7z"/>';
-      showToast('一時停止中');
-    } else {
-      pauseIcon.innerHTML = '<path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
-      showToast('再開');
-    }
+    $('pauseIcon').innerHTML = isPaused
+      ? '<path fill="currentColor" d="M8 5v14l11-7z"/>'
+      : '<path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+    toast(isPaused ? '一時停止' : '再開');
   });
 
-  fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      cameraManager.loadFile(file);
-    }
+  // ═══ File Input ═══
+  $('fileInput').addEventListener('change', (e) => {
+    if (e.target.files[0]) camera.loadFile(e.target.files[0]);
   });
 
-  // Drag & Drop
-  canvasContainer.addEventListener('dragover', (e) => {
+  // ═══ Drag & Drop ═══
+  viewfinder.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('active'); });
+  viewfinder.addEventListener('dragleave', () => dropZone.classList.remove('active'));
+  viewfinder.addEventListener('drop', (e) => {
     e.preventDefault();
-    dropOverlay.classList.add('drag-over');
+    dropZone.classList.remove('active');
+    if (e.dataTransfer.files[0]) camera.loadFile(e.dataTransfer.files[0]);
   });
 
-  canvasContainer.addEventListener('dragleave', () => {
-    dropOverlay.classList.remove('drag-over');
+  // ═══ Drawer Slider Bindings ═══
+  const sliders = [
+    ['sShadow', 'vShadow'],
+    ['sSat', 'vSat'],
+    ['sGamma', 'vGamma'],
+    ['sBright', 'vBright'],
+    ['sContrast', 'vContrast'],
+    ['sCols', 'vCols'],
+    ['sFont', 'vFont'],
+    ['sAspect', 'vAspect'],
+    ['sEdge', 'vEdge'],
+  ];
+  for (const [sid, vid] of sliders) {
+    $(sid).addEventListener('input', () => { $(vid).textContent = $(sid).value; sync(); });
+  }
+
+  $('chkDither').addEventListener('change', sync);
+  $('chkInvert').addEventListener('change', sync);
+  $('chkEdge').addEventListener('change', () => {
+    $('edgeField').style.display = $('chkEdge').checked ? 'block' : 'none';
+    sync();
   });
 
-  canvasContainer.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropOverlay.classList.remove('drag-over');
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      cameraManager.loadFile(e.dataTransfer.files[0]);
-    }
+  $('charSetSel').addEventListener('change', () => {
+    $('customCharField').style.display = $('charSetSel').value === 'custom' ? 'block' : 'none';
+    sync();
+  });
+  $('customCharInput').addEventListener('input', sync);
+  $('bgColor').addEventListener('input', sync);
+  $('textColor').addEventListener('input', sync);
+
+  // ═══ Export ═══
+  $('btnSavePng').addEventListener('click', () => {
+    downloadPng(asciiCanvas, `ascii-${Date.now()}.png`);
+    toast('PNG保存完了');
+    $('captureModal').classList.remove('open');
   });
 
-  // Drawer Controls Listeners
-  bgColorInput.addEventListener('input', updateEngineSettings);
-  textColorInput.addEventListener('input', updateEngineSettings);
-
-  charSetSelect.addEventListener('change', () => {
-    customCharGroup.style.display = charSetSelect.value === 'custom' ? 'flex' : 'none';
-    updateEngineSettings();
-  });
-  customCharInput.addEventListener('input', updateEngineSettings);
-
-  ditherCheckbox.addEventListener('change', updateEngineSettings);
-
-  shadowBoostSlider.addEventListener('input', () => {
-    shadowBoostVal.textContent = shadowBoostSlider.value;
-    updateEngineSettings();
+  $('btnSaveTxt').addEventListener('click', () => {
+    const txt = engine.getTextOutput();
+    if (txt) { downloadTxt(txt, `ascii-${Date.now()}.txt`); toast('TXT保存完了'); $('captureModal').classList.remove('open'); }
   });
 
-  saturationSlider.addEventListener('input', () => {
-    saturationVal.textContent = saturationSlider.value;
-    updateEngineSettings();
+  $('btnCopy').addEventListener('click', async () => {
+    const txt = engine.getTextOutput();
+    if (txt && await copyTextToClipboard(txt)) { toast('クリップボードにコピー'); $('captureModal').classList.remove('open'); }
   });
 
-  gammaSlider.addEventListener('input', () => {
-    gammaVal.textContent = gammaSlider.value;
-    updateEngineSettings();
-  });
+  // ═══ Resize ═══
+  window.addEventListener('resize', sync);
 
-  brightnessSlider.addEventListener('input', () => {
-    brightnessVal.textContent = brightnessSlider.value;
-    updateEngineSettings();
-  });
-
-  contrastSlider.addEventListener('input', () => {
-    contrastVal.textContent = contrastSlider.value;
-    updateEngineSettings();
-  });
-
-  edgeCheckbox.addEventListener('change', () => {
-    edgeThresholdGroup.style.display = edgeCheckbox.checked ? 'flex' : 'none';
-    updateEngineSettings();
-  });
-
-  edgeThresholdSlider.addEventListener('input', () => {
-    edgeThresholdVal.textContent = edgeThresholdSlider.value;
-    updateEngineSettings();
-  });
-
-  invertCheckbox.addEventListener('change', updateEngineSettings);
-
-  resolutionSlider.addEventListener('input', () => {
-    resolutionVal.textContent = resolutionSlider.value;
-    updateEngineSettings();
-  });
-
-  fontSizeSlider.addEventListener('input', () => {
-    fontSizeVal.textContent = fontSizeSlider.value;
-    updateEngineSettings();
-  });
-
-  charAspectSlider.addEventListener('input', () => {
-    charAspectVal.textContent = charAspectSlider.value;
-    updateEngineSettings();
-  });
-
-  // Export Modal Actions
-  btnSnapPng.addEventListener('click', () => {
-    downloadPng(asciiCanvas, `ascii-art-${Date.now()}.png`);
-    showToast('PNG画像として保存しました');
-    captureModal.classList.remove('open');
-  });
-
-  btnSnapTxt.addEventListener('click', () => {
-    const text = engine.getTextOutput();
-    if (text) {
-      downloadTxt(text, `ascii-art-${Date.now()}.txt`);
-      showToast('テキスト(.txt)として保存しました');
-      captureModal.classList.remove('open');
-    }
-  });
-
-  btnCopyTxt.addEventListener('click', async () => {
-    const text = engine.getTextOutput();
-    if (text) {
-      const success = await copyTextToClipboard(text);
-      if (success) {
-        showToast('クリップボードにコピーしました');
-        captureModal.classList.remove('open');
-      }
-    }
-  });
-
-  // Window Resize
-  window.addEventListener('resize', updateEngineSettings);
-
-  // Initial Engine Setup & Auto Start Camera
-  updateEngineSettings();
-  cameraManager.startCamera().catch(() => {
-    showToast('カメラまたはファイルを選択してください');
-  });
+  // ═══ Boot ═══
+  sync();
+  camera.startCamera().catch(() => toast('カメラ or ファイルを選択'));
 });

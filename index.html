@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>ASCII VISION - アスキーカメラ</title>
+  <title>ASCII VISION</title>
   <meta name="description" content="リアルタイム アスキーアート カメラ PWA アプリ" />
-  
-  <!-- PWA Metadata (GitHub Pages Base Path Friendly) -->
+
+  <!-- PWA -->
   <link rel="manifest" href="./manifest.json" />
   <link rel="icon" type="image/svg+xml" href="./icon.svg" />
   <link rel="apple-touch-icon" href="./icon.svg" />
-  <meta name="theme-color" content="#05070a" />
+  <meta name="theme-color" content="#000000" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
@@ -20,307 +20,182 @@
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css" />
 </head>
-<body class="camera-app-body">
-  <div class="camera-app-container">
+<body>
+  <div id="app">
 
-    <!-- Viewfinder Area (Main Display) -->
-    <main class="viewfinder-wrapper">
-      <!-- Minimal Top Control Bar -->
-      <header class="top-control-bar">
-        <div class="top-left-actions">
-          <!-- Install App PWA Button -->
-          <button id="btnInstallApp" class="install-app-btn hidden" title="アプリをダウンロード/インストール">
-            <span class="icon">📲</span> <span class="label">アプリ追加</span>
-          </button>
+    <!-- ═══ Viewfinder ═══ -->
+    <div class="viewfinder" id="viewfinder">
+      <canvas id="asciiCanvas"></canvas>
 
-          <!-- Aspect Ratio Toggle Button -->
-          <button id="btnAspect" class="pill-btn" title="画面アスペクト比">
-            <span id="aspectLabel">FULL</span>
-          </button>
-        </div>
-
-        <div class="top-right-actions">
-          <span id="fpsBadge" class="fps-pill">0 FPS</span>
-
-          <button id="btnToggleGrid" class="icon-btn" title="グリッド線">
-            <svg class="svg-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM8 20H4v-4h4v4zm0-6H4v-4h4v4zm0-6H4V4h4v4zm6 12h-4v-4h4v4zm0-6h-4v-4h4v4zm0-6h-4V4h4v4zm6 12h-4v-4h4v4zm0-6h-4v-4h4v4zm0-6h-4V4h4v4z"/></svg>
-          </button>
-          <button id="btnSwitchCamera" class="icon-btn" title="カメラ切り替え">
-            <svg class="svg-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
-          </button>
-          <button id="btnToggleDrawer" class="icon-btn" title="全調整設定">
-            <svg class="svg-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
-          </button>
-          <button id="btnFullscreen" class="icon-btn" title="全画面表示">
-            <svg class="svg-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
-          </button>
-        </div>
-      </header>
-
-      <!-- Viewfinder Canvas & Overlays -->
-      <div class="viewfinder-canvas-container" id="canvasContainer">
-        <!-- ASCII Canvas -->
-        <canvas id="asciiCanvas"></canvas>
-
-        <!-- Rule of Thirds Grid Overlay -->
-        <div id="cameraGrid" class="camera-grid-overlay hidden">
-          <div class="grid-line v1"></div>
-          <div class="grid-line v2"></div>
-          <div class="grid-line h1"></div>
-          <div class="grid-line h2"></div>
-        </div>
-
-        <!-- Shutter Flash Effect -->
-        <div id="shutterFlash" class="shutter-flash"></div>
-
-        <!-- Drag and Drop Overlay for Images -->
-        <div id="dropOverlay" class="drop-overlay">
-          <div class="drop-message">
-            <span class="drop-icon">📁</span>
-            <p>画像をドロップして読み込み</p>
-          </div>
-        </div>
+      <!-- Grid Overlay -->
+      <div id="gridOverlay" class="grid-overlay hidden">
+        <div class="gl v1"></div><div class="gl v2"></div>
+        <div class="gl h1"></div><div class="gl h2"></div>
       </div>
 
-      <!-- Hidden Source Elements -->
-      <video id="webcamVideo" autoplay playsinline muted style="display: none; position: absolute; width: 1px; height: 1px; opacity: 0;"></video>
-      <canvas id="sourceCanvas" style="display: none; position: absolute; width: 1px; height: 1px; opacity: 0;"></canvas>
+      <!-- Shutter Flash -->
+      <div id="shutterFlash" class="shutter-flash"></div>
 
-      <!-- Bottom Control Section -->
-      <div class="bottom-control-section">
-        <!-- Camera Mode Ribbon -->
-        <div class="mode-ribbon">
-          <div class="mode-scroll" id="modeRibbon">
-            <button class="mode-item active" data-mode="matrix">MATRIX</button>
-            <button class="mode-item" data-mode="cyber">NEON CYBER</button>
-            <button class="mode-item" data-mode="color">COLOR</button>
-            <button class="mode-item" data-mode="mono">MONO</button>
-            <button class="mode-item" data-mode="amber">AMBER</button>
-            <button class="mode-item" data-mode="invert">INVERT</button>
-            <button class="mode-item" data-mode="custom">CUSTOM</button>
-          </div>
-        </div>
-
-        <!-- Bottom Shutter Bar -->
-        <div class="bottom-shutter-bar">
-          <!-- File Import Button -->
-          <label class="shutter-side-btn file-import-label" title="画像/動画を選択">
-            <svg class="svg-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
-            <input type="file" id="fileInput" accept="image/*,video/*" style="display: none;" />
-          </label>
-
-          <!-- Big Native Camera Shutter Button -->
-          <button id="btnShutter" class="shutter-button" title="撮影">
-            <div class="shutter-inner"></div>
-          </button>
-
-          <!-- Quick Pause / Resume Button -->
-          <button id="btnPause" class="shutter-side-btn" title="一時停止/再開">
-            <svg id="pauseIcon" class="svg-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-          </button>
-        </div>
+      <!-- Drop Zone -->
+      <div id="dropZone" class="drop-zone">
+        <div class="drop-inner">📁<br>画像をドロップ</div>
       </div>
-    </main>
+    </div>
 
-    <!-- Slide-in Adjustment Drawer (Bottom Sheet for Full Settings) -->
-    <div id="adjustmentDrawer" class="adjustment-drawer">
-      <div class="drawer-header" id="drawerHeader">
+    <!-- ═══ Top Bar ═══ -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button id="btnInstall" class="btn-install hidden">📲 インストール</button>
+        <button id="btnAspect" class="btn-pill" title="画面比率"><span id="aspectLabel">FULL</span></button>
+      </div>
+      <div class="topbar-right">
+        <span id="fpsBadge" class="badge-fps">-- FPS</span>
+        <button id="btnGrid" class="btn-icon" title="グリッド">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM8 20H4v-4h4v4zm0-6H4v-4h4v4zm0-6H4V4h4v4zm6 12h-4v-4h4v4zm0-6h-4v-4h4v4zm0-6h-4V4h4v4zm6 12h-4v-4h4v4zm0-6h-4v-4h4v4zm0-6h-4V4h4v4z"/></svg>
+        </button>
+        <button id="btnFlip" class="btn-icon" title="カメラ切替">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+        </button>
+        <button id="btnSettings" class="btn-icon" title="設定">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.44.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        </button>
+        <button id="btnFullscreen" class="btn-icon" title="全画面">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- ═══ Bottom Controls ═══ -->
+    <footer class="bottombar">
+      <!-- Mode Ribbon -->
+      <div class="mode-ribbon" id="modeRibbon">
+        <button class="mode-chip active" data-mode="matrix">MATRIX</button>
+        <button class="mode-chip" data-mode="color">COLOR</button>
+        <button class="mode-chip" data-mode="cyber">CYBER</button>
+        <button class="mode-chip" data-mode="mono">MONO</button>
+        <button class="mode-chip" data-mode="amber">AMBER</button>
+        <button class="mode-chip" data-mode="invert">INVERT</button>
+        <button class="mode-chip" data-mode="custom">CUSTOM</button>
+      </div>
+
+      <!-- Shutter Row -->
+      <div class="shutter-row">
+        <label class="btn-round" title="ファイル読み込み">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+          <input type="file" id="fileInput" accept="image/*,video/*" hidden />
+        </label>
+        <button id="btnShutter" class="btn-shutter"><div class="shutter-core"></div></button>
+        <button id="btnPause" class="btn-round" title="一時停止">
+          <svg id="pauseIcon" viewBox="0 0 24 24"><path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        </button>
+      </div>
+    </footer>
+
+    <!-- ═══ Settings Drawer ═══ -->
+    <div id="settingsDrawer" class="drawer">
+      <div class="drawer-bar">
         <div class="drawer-handle"></div>
-        <h2>全パラメータ設定・カスタマイズ</h2>
-        <button id="btnCloseDrawer" class="close-btn">&times;</button>
+        <button id="btnCloseDrawer" class="btn-close">&times;</button>
       </div>
+      <div class="drawer-body">
 
-      <div class="drawer-content">
-        <!-- Color & Characters Card -->
-        <div class="drawer-card">
+        <!-- Theme -->
+        <section class="card">
           <h3>テーマ & 文字</h3>
-          
-          <div class="control-group" id="customColorRow" style="display: none;">
-            <div class="color-picker-grid">
-              <div>
-                <label>背景色</label>
-                <input type="color" id="bgColorInput" class="color-picker" value="#05070a" />
-              </div>
-              <div>
-                <label>文字色</label>
-                <input type="color" id="textColorInput" class="color-picker" value="#00ff66" />
-              </div>
+          <div class="field" id="customColorField" style="display:none">
+            <div class="color-row">
+              <label>背景色 <input type="color" id="bgColor" value="#05070a" /></label>
+              <label>文字色 <input type="color" id="textColor" value="#00ff66" /></label>
             </div>
           </div>
-
-          <div class="control-group">
-            <label for="charSetSelect">文字セット</label>
-            <select id="charSetSelect" class="form-select">
+          <div class="field">
+            <label for="charSetSel">文字セット</label>
+            <select id="charSetSel">
               <option value="standard">Standard (@%#*+=-:. )</option>
-              <option value="detailed">Detailed (70階調高精細)</option>
-              <option value="matrix">Matrix (カタカナ & 数字)</option>
-              <option value="blocks">Blocks (立体ブロック █▓▒░)</option>
-              <option value="binary">Binary (バイナリ 01)</option>
-              <option value="emoji">Emoji (絵文字 💥🔥😎⭐)</option>
-              <option value="custom">Custom (カスタム入力)</option>
+              <option value="detailed">Detailed (70階調)</option>
+              <option value="matrix">Matrix (カタカナ)</option>
+              <option value="blocks">Blocks (█▓▒░)</option>
+              <option value="binary">Binary (01)</option>
+              <option value="emoji">Emoji (💥🔥😎⭐)</option>
+              <option value="custom">Custom</option>
             </select>
           </div>
-
-          <div class="control-group" id="customCharGroup" style="display: none;">
-            <label for="customCharInput">カスタム文字 (暗 → 明)</label>
-            <input type="text" id="customCharInput" class="form-input" value="@#=$:-. " />
+          <div class="field" id="customCharField" style="display:none">
+            <label>カスタム文字 (暗→明)</label>
+            <input type="text" id="customCharInput" value="@#=$:-. " />
           </div>
-        </div>
+        </section>
 
-        <!-- Image Processing Fine Tuning Card -->
-        <div class="drawer-card">
-          <h3>画質・色彩チューニング</h3>
-          
-          <div class="toggle-group">
-            <label class="toggle-label">
-              <input type="checkbox" id="ditherCheckbox" checked />
-              <span class="toggle-custom"></span>
-              リアル ディザリング (滑らかな質感表現)
-            </label>
+        <!-- Image -->
+        <section class="card">
+          <h3>画質チューニング</h3>
+          <label class="toggle"><input type="checkbox" id="chkDither" checked /><span></span> ディザリング</label>
+          <div class="slider-row"><label>暗部補正</label><span id="vShadow">30</span></div>
+          <input type="range" id="sShadow" min="0" max="100" step="2" value="30" />
+          <div class="slider-row"><label>彩度</label><span id="vSat">1.0</span></div>
+          <input type="range" id="sSat" min="0" max="3" step="0.1" value="1.0" />
+          <div class="slider-row"><label>ガンマ</label><span id="vGamma">1.0</span></div>
+          <input type="range" id="sGamma" min="0.2" max="2.5" step="0.1" value="1.0" />
+          <div class="slider-row"><label>明るさ</label><span id="vBright">0</span></div>
+          <input type="range" id="sBright" min="-100" max="100" step="5" value="0" />
+          <div class="slider-row"><label>コントラスト</label><span id="vContrast">1.0</span></div>
+          <input type="range" id="sContrast" min="0.5" max="3" step="0.05" value="1.0" />
+          <label class="toggle"><input type="checkbox" id="chkEdge" /><span></span> エッジ抽出</label>
+          <div class="field" id="edgeField" style="display:none">
+            <div class="slider-row"><label>感度</label><span id="vEdge">30</span></div>
+            <input type="range" id="sEdge" min="5" max="100" step="5" value="30" />
           </div>
+          <label class="toggle"><input type="checkbox" id="chkInvert" /><span></span> ネガポジ反転</label>
+        </section>
 
-          <div class="control-group">
-            <div class="slider-header">
-              <label for="shadowBoostSlider">暗部補正 (Shadow Recovery / 黒潰れ防止)</label>
-              <span id="shadowBoostVal" class="slider-val">22</span>
-            </div>
-            <input type="range" id="shadowBoostSlider" min="0" max="60" step="2" value="22" />
-          </div>
+        <!-- Resolution -->
+        <section class="card">
+          <h3>解像度</h3>
+          <div class="slider-row"><label>カラム数</label><span id="vCols">120</span></div>
+          <input type="range" id="sCols" min="40" max="240" step="5" value="120" />
+          <div class="slider-row"><label>フォントサイズ</label><span id="vFont">10</span></div>
+          <input type="range" id="sFont" min="4" max="24" step="1" value="10" />
+          <div class="slider-row"><label>文字比率</label><span id="vAspect">0.55</span></div>
+          <input type="range" id="sAspect" min="0.3" max="0.9" step="0.05" value="0.55" />
+        </section>
+      </div>
+    </div>
 
-          <div class="control-group">
-            <div class="slider-header">
-              <label for="saturationSlider">鮮やかさ (Saturation)</label>
-              <span id="saturationVal" class="slider-val">1.0</span>
-            </div>
-            <input type="range" id="saturationSlider" min="0.0" max="3.0" step="0.1" value="1.0" />
-          </div>
-
-          <div class="control-group">
-            <div class="slider-header">
-              <label for="gammaSlider">ガンマ補正 (Gamma)</label>
-              <span id="gammaVal" class="slider-val">1.0</span>
-            </div>
-            <input type="range" id="gammaSlider" min="0.2" max="2.5" step="0.1" value="1.0" />
-          </div>
-
-          <div class="control-group">
-            <div class="slider-header">
-              <label for="brightnessSlider">明るさ (Brightness)</label>
-              <span id="brightnessVal" class="slider-val">0</span>
-            </div>
-            <input type="range" id="brightnessSlider" min="-100" max="100" step="5" value="0" />
-          </div>
-
-          <div class="control-group">
-            <div class="slider-header">
-              <label for="contrastSlider">コントラスト (Contrast)</label>
-              <span id="contrastVal" class="slider-val">1.0</span>
-            </div>
-            <input type="range" id="contrastSlider" min="0.5" max="3.0" step="0.05" value="1.0" />
-          </div>
-
-          <div class="toggle-group">
-            <label class="toggle-label">
-              <input type="checkbox" id="edgeCheckbox" />
-              <span class="toggle-custom"></span>
-              輪郭抽出 (エッジ強調モード)
-            </label>
-          </div>
-
-          <div class="control-group" id="edgeThresholdGroup" style="display: none;">
-            <div class="slider-header">
-              <label for="edgeThresholdSlider">輪郭感度 (Edge Threshold)</label>
-              <span id="edgeThresholdVal" class="slider-val">30</span>
-            </div>
-            <input type="range" id="edgeThresholdSlider" min="5" max="100" step="5" value="30" />
-          </div>
-
-          <div class="toggle-group">
-            <label class="toggle-label">
-              <input type="checkbox" id="invertCheckbox" />
-              <span class="toggle-custom"></span>
-              輝度反転 (ネガポジ)
-            </label>
-          </div>
-        </div>
-
-        <!-- Resolution & Layout Card -->
-        <div class="drawer-card">
-          <h3>グリッド & 解像度</h3>
-          
-          <div class="control-group">
-            <div class="slider-header">
-              <label for="resolutionSlider">解像度 (Grid Columns)</label>
-              <span id="resolutionVal" class="slider-val">100</span>
-            </div>
-            <input type="range" id="resolutionSlider" min="40" max="240" step="5" value="100" />
-          </div>
-
-          <div class="control-group">
-            <div class="slider-header">
-              <label for="fontSizeSlider">フォントサイズ (px)</label>
-              <span id="fontSizeVal" class="slider-val">10</span>
-            </div>
-            <input type="range" id="fontSizeSlider" min="5" max="24" step="1" value="10" />
-          </div>
-
-          <div class="control-group">
-            <div class="slider-header">
-              <label for="charAspectSlider">文字縦横比 (Aspect)</label>
-              <span id="charAspectVal" class="slider-val">0.55</span>
-            </div>
-            <input type="range" id="charAspectSlider" min="0.30" max="0.90" step="0.05" value="0.55" />
+    <!-- ═══ Capture Modal ═══ -->
+    <div id="captureModal" class="modal">
+      <div class="modal-box">
+        <div class="modal-head"><h3>📷 撮影完了</h3><button id="btnCloseCapture" class="btn-close">&times;</button></div>
+        <div class="modal-body">
+          <div class="preview-box"><canvas id="previewCanvas"></canvas></div>
+          <div class="export-actions">
+            <button id="btnSavePng" class="btn-action primary">🖼️ PNG保存</button>
+            <button id="btnSaveTxt" class="btn-action">📄 TXT保存</button>
+            <button id="btnCopy" class="btn-action">📋 コピー</button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Capture Modal / Export Dialog -->
-    <div id="captureModal" class="capture-modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>📷 撮影完了</h3>
-          <button id="btnCloseModal" class="close-btn">&times;</button>
-        </div>
+    <!-- ═══ iOS Install Guide ═══ -->
+    <div id="iosModal" class="modal">
+      <div class="modal-box">
+        <div class="modal-head"><h3>📲 ホーム画面に追加</h3><button id="btnCloseIos" class="btn-close">&times;</button></div>
         <div class="modal-body">
-          <div class="capture-preview-box">
-            <canvas id="modalPreviewCanvas"></canvas>
-          </div>
-          <div class="export-btn-group">
-            <button id="btnSnapPng" class="btn btn-primary">
-              <span class="icon">🖼️</span> PNG画像保存
-            </button>
-            <button id="btnSnapTxt" class="btn btn-secondary">
-              <span class="icon">📄</span> テキスト(.txt)保存
-            </button>
-            <button id="btnCopyTxt" class="btn btn-secondary">
-              <span class="icon">📋</span> クリップボードにコピー
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- iOS PWA Installation Guide Modal -->
-    <div id="iosInstallModal" class="capture-modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>📲 アプリをインストール (iPhone/iPad)</h3>
-          <button id="btnCloseIosModal" class="close-btn">&times;</button>
-        </div>
-        <div class="modal-body">
-          <p class="guide-text">Safariの機能を使ってホーム画面にアプリとしてダウンロード追加できます。</p>
-          <ol class="ios-guide-list">
-            <li>画面下部にある Safari の <strong>「共有」アイコン (⬆️)</strong> をタップ</li>
-            <li>メニューから <strong>「ホーム画面に追加 (➕)」</strong> を選択</li>
-            <li>右上の <strong>「追加」</strong> をタップして完了！</li>
+          <ol class="ios-steps">
+            <li>Safariの <strong>共有アイコン (⬆️)</strong> をタップ</li>
+            <li><strong>「ホーム画面に追加」</strong> を選択</li>
+            <li><strong>「追加」</strong> をタップ</li>
           </ol>
-          <button id="btnConfirmIosGuide" class="btn btn-primary" style="margin-top: 0.5rem;">わかりました</button>
+          <button id="btnIosOk" class="btn-action primary">OK</button>
         </div>
       </div>
     </div>
 
-    <!-- Toast Notification -->
+    <!-- Hidden -->
+    <video id="webcam" autoplay playsinline muted hidden></video>
+    <canvas id="sourceCanvas" hidden></canvas>
+
+    <!-- Toast -->
     <div id="toast" class="toast"></div>
   </div>
 
