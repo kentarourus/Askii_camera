@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="./assets/index-CTZopZNm.js"></script>
+  <script type="module" crossorigin src="./assets/index-EzgT-ahP.js"></script>
   <link rel="stylesheet" crossorigin href="./assets/index-Ld5GLzT6.css">
 </head>
 <body class="camera-app-body">
@@ -154,7 +154,6 @@
           <div class="control-group">
             <label for="charSetSelect">文字セット</label>
             <select id="charSetSelect" class="form-select">
-              <option value="realistic">Realistic (超リアルマルチシェード)</option>
               <option value="standard">Standard (@%#*+=-:. )</option>
               <option value="detailed">Detailed (70階調高精細)</option>
               <option value="matrix">Matrix (カタカナ & 数字)</option>
@@ -185,10 +184,18 @@
 
           <div class="control-group">
             <div class="slider-header">
-              <label for="saturationSlider">鮮やかさ (Saturation)</label>
-              <span id="saturationVal" class="slider-val">1.1</span>
+              <label for="shadowBoostSlider">暗部補正 (Shadow Recovery / 黒潰れ防止)</label>
+              <span id="shadowBoostVal" class="slider-val">22</span>
             </div>
-            <input type="range" id="saturationSlider" min="0.0" max="3.0" step="0.1" value="1.1" />
+            <input type="range" id="shadowBoostSlider" min="0" max="60" step="2" value="22" />
+          </div>
+
+          <div class="control-group">
+            <div class="slider-header">
+              <label for="saturationSlider">鮮やかさ (Saturation)</label>
+              <span id="saturationVal" class="slider-val">1.0</span>
+            </div>
+            <input type="range" id="saturationSlider" min="0.0" max="3.0" step="0.1" value="1.0" />
           </div>
 
           <div class="control-group">
@@ -210,9 +217,9 @@
           <div class="control-group">
             <div class="slider-header">
               <label for="contrastSlider">コントラスト (Contrast)</label>
-              <span id="contrastVal" class="slider-val">1.05</span>
+              <span id="contrastVal" class="slider-val">1.0</span>
             </div>
-            <input type="range" id="contrastSlider" min="0.5" max="3.0" step="0.05" value="1.05" />
+            <input type="range" id="contrastSlider" min="0.5" max="3.0" step="0.05" value="1.0" />
           </div>
 
           <div class="toggle-group">
@@ -247,17 +254,17 @@
           <div class="control-group">
             <div class="slider-header">
               <label for="resolutionSlider">解像度 (Grid Columns)</label>
-              <span id="resolutionVal" class="slider-val">120</span>
+              <span id="resolutionVal" class="slider-val">100</span>
             </div>
-            <input type="range" id="resolutionSlider" min="40" max="260" step="5" value="120" />
+            <input type="range" id="resolutionSlider" min="40" max="240" step="5" value="100" />
           </div>
 
           <div class="control-group">
             <div class="slider-header">
               <label for="fontSizeSlider">フォントサイズ (px)</label>
-              <span id="fontSizeVal" class="slider-val">9</span>
+              <span id="fontSizeVal" class="slider-val">10</span>
             </div>
-            <input type="range" id="fontSizeSlider" min="5" max="24" step="1" value="9" />
+            <input type="range" id="fontSizeSlider" min="5" max="24" step="1" value="10" />
           </div>
 
           <div class="control-group">

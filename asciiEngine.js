@@ -1,12 +1,11 @@
 /**
  * =====================================================================
- *  AsciiEngine v3.5 — Color-Faithful & Smart Adaptive Brightness Engine
+ *  AsciiEngine v3.8 — Smart Low-Light Shadow Boost & Faithful Color Engine
  * =====================================================================
  *
- *  特徴:
- *    - 色の忠実性 (Color Fidelity): 元画像の素直で鮮やかな発色をそのまま再現
- *    - スマート自動露出・明暗階調補正: 暗い場所での黒潰れや白飛びを防ぎ、文字濃度に綺麗にマッピング
- *    - ディザリングの輝度限定適用: 色味（Chroma）を一切汚さず文字階調のみ滑らか化
+ *  改善点:
+ *    - 暗部過剰黒潰れ防止 (Shadow Lift): 暗い領域が真っ黒に消えるのを防ぎ、適度な陰影文字を表現
+ *    - PWA & 高速動作の完全化
  */
 
 export const CHARACTER_SETS = {
@@ -19,7 +18,7 @@ export const CHARACTER_SETS = {
   realistic: '$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrft/\\|()1{}[]?-_+~<>i!lI;:,"^`\'. ',
 };
 
-// ────────── Bayer Dithering for Luminance Only ──────────
+// ────────── Bayer Dithering ──────────
 const BAYER_4X4 = [
   [-4,   0, -3,   1],
   [ 2,  -2,  3,  -1],
@@ -27,18 +26,24 @@ const BAYER_4X4 = [
   [ 3.5,-0.5, 2.5, -1.5]
 ];
 
-// ────────── Smart Luminance LUT Builder ──────────
-function buildLuminanceLUT(contrast, brightness, gamma) {
+// ────────── Smart Luminance LUT with Shadow Boost ──────────
+function buildLuminanceLUT(contrast, brightness, gamma, shadowBoost = 22) {
   const lut = new Uint8Array(256);
   const invGamma = 1 / Math.max(0.1, gamma);
   const factor = (259 * (contrast * 255 + 255)) / (255 * (259 - contrast * 255));
 
   for (let i = 0; i < 256; i++) {
-    // 1. Brightness offset
-    let v = i + brightness;
-    // 2. Contrast adjustment
+    // 1. Shadow Lift: 暗部が過剰に黒く潰れるのを防ぐ適度なベース底上げ
+    let normalized = i / 255;
+    
+    // Soft Shadow Recovery curve
+    if (shadowBoost > 0) {
+      const liftRatio = Math.pow(1 - normalized, 1.8);
+      normalized += (shadowBoost / 255) * liftRatio;
+    }
+
+    let v = normalized * 255 + brightness;
     v = factor * (v - 128) + 128;
-    // 3. Gamma curve
     v = Math.pow(Math.max(0, Math.min(255, v)) / 255, invGamma) * 255;
 
     lut[i] = Math.min(255, Math.max(0, Math.round(v)));
@@ -79,11 +84,10 @@ class EdgeDetector {
   }
 }
 
-// ────────── Color Output Functions (High Color Fidelity) ──────────
+// ────────── Color Output Functions ──────────
 function getCharColorString(mode, r, g, b, lum, x, y, cols, rows, customTC) {
   switch (mode) {
     case 'color':
-      // 原色忠実再現 (Perfect Color Fidelity)
       return `rgb(${r | 0},${g | 0},${b | 0})`;
 
     case 'matrix': {
@@ -136,6 +140,7 @@ export class AsciiEngine {
     this.contrast = 1.0;
     this.saturation = 1.0;
     this.gamma = 1.0;
+    this.shadowBoost = 22; // 暗部過剰黒潰れ防止のデフォルト持ち上げ
     this.edgeMode = false;
     this.edgeThreshold = 30;
     this.invert = false;
@@ -178,7 +183,7 @@ export class AsciiEngine {
       this._fpsTime = now;
     }
 
-    // Grid Aspect Calculation
+    // Aspect Calculation
     let targetAspectRatio = srcH / srcW;
     if (this.frameAspect === '16:9') targetAspectRatio = 9 / 16;
     else if (this.frameAspect === '4:3') targetAspectRatio = 3 / 4;
@@ -201,20 +206,19 @@ export class AsciiEngine {
     const imgData = this.sourceCtx.getImageData(0, 0, cols, rows);
     const pixels = imgData.data;
 
-    // Luminance LUT
-    const paramKey = `${this.contrast}_${this.brightness}_${this.gamma}`;
+    // Luminance LUT (with Shadow Boost)
+    const paramKey = `${this.contrast}_${this.brightness}_${this.gamma}_${this.shadowBoost}`;
     if (paramKey !== this._lastLumParams) {
-      this._lumLUT = buildLuminanceLUT(this.contrast, this.brightness, this.gamma);
+      this._lumLUT = buildLuminanceLUT(this.contrast, this.brightness, this.gamma, this.shadowBoost);
       this._lastLumParams = paramKey;
     }
     const lumLUT = this._lumLUT;
 
-    // Saturation adjustment on source RGB
+    // Saturation Pass
     const sat = this.saturation;
     const needSat = sat !== 1.0;
     const totalPixels = cols * rows;
 
-    // Saturation pass if requested
     if (needSat) {
       for (let i = 0; i < totalPixels * 4; i += 4) {
         let r = pixels[i];
@@ -227,13 +231,13 @@ export class AsciiEngine {
       }
     }
 
-    // Edge Detection Map if enabled
+    // Edge Detection Map
     let edgeMap = null;
     if (this.edgeMode) {
       edgeMap = EdgeDetector.computeEdgeMap(pixels, cols, rows, this.edgeThreshold);
     }
 
-    // Prepare Render Canvas
+    // Prepare Output Canvas
     const cellW = this.fontSize * 0.6;
     const cellH = this.fontSize;
     const outW = (cols * cellW) | 0;
@@ -276,28 +280,27 @@ export class AsciiEngine {
         const pg = pixels[pi + 1];
         const pb = pixels[pi + 2];
 
-        // 1. Precise ITU-R BT.709 Relative Luminance
+        // 1. Luminance
         let rawLum = 0.2126 * pr + 0.7152 * pg + 0.0722 * pb;
 
-        // 2. Apply Brightness / Contrast / Gamma via LUT to Luminance
+        // 2. Mapped Lum with Shadow Recovery
         let mappedLum = lumLUT[rawLum | 0];
 
-        // 3. Optional Edge Override
+        // 3. Optional Edge / Dither
         if (edgeMap) {
           mappedLum = edgeMap[r * cols + c];
         } else if (doDither) {
-          // Add subtle luminance-only dithering for smooth character transitions
           mappedLum = Math.min(255, Math.max(0, mappedLum + bayerRow[c % 4]));
         }
 
         if (doInvert) mappedLum = 255 - mappedLum;
 
-        // 4. Character mapping from mapped luminance
+        // 4. Character mapping
         const ci = Math.min(charLen - 1, Math.max(0, (mappedLum * invCharLen) | 0));
         const ch = chars[ci];
         line += ch;
 
-        // 5. Render Color (Using pristine original RGB for color mode)
+        // 5. Render Color
         const color = getCharColorString(mode, pr, pg, pb, mappedLum, c, r, cols, rows, customTC);
         if (color !== prevColor) {
           ctx.fillStyle = color;

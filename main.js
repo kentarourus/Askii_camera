@@ -94,6 +94,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const textColorInput = document.getElementById('textColorInput');
 
   const ditherCheckbox = document.getElementById('ditherCheckbox');
+  const shadowBoostSlider = document.getElementById('shadowBoostSlider');
+  const shadowBoostVal = document.getElementById('shadowBoostVal');
+
   const saturationSlider = document.getElementById('saturationSlider');
   const saturationVal = document.getElementById('saturationVal');
 
@@ -169,6 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
       colorMode: activeColorMode,
       frameAspect: currentAspectMode,
       dithering: ditherCheckbox.checked,
+      shadowBoost: parseInt(shadowBoostSlider.value, 10),
       brightness: parseInt(brightnessSlider.value, 10),
       contrast: parseFloat(contrastSlider.value),
       saturation: parseFloat(saturationSlider.value),
@@ -203,7 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 2500);
   }
 
-  // ────────── Aspect Ratio Cycle ──────────
+  // Aspect Ratio Cycle
   btnAspect.addEventListener('click', () => {
     currentAspectIdx = (currentAspectIdx + 1) % aspectModes.length;
     const modeName = aspectModes[currentAspectIdx];
@@ -325,6 +329,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   ditherCheckbox.addEventListener('change', updateEngineSettings);
 
+  shadowBoostSlider.addEventListener('input', () => {
+    shadowBoostVal.textContent = shadowBoostSlider.value;
+    updateEngineSettings();
+  });
+
   saturationSlider.addEventListener('input', () => {
     saturationVal.textContent = saturationSlider.value;
     updateEngineSettings();
@@ -399,7 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Handle Window Resize / Orientation Change
+  // Window Resize
   window.addEventListener('resize', updateEngineSettings);
 
   // Initial Engine Setup & Auto Start Camera
