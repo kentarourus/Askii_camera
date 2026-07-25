@@ -3,7 +3,7 @@ import { CameraManager } from './cameraManager.js';
 import { downloadPng, downloadTxt, copyTextToClipboard } from './exporter.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-  // ────────── PWA Install & Service Worker ──────────
+  // PWA Service Worker Registration
   let deferredPrompt = null;
   const btnInstallApp = document.getElementById('btnInstallApp');
   const iosInstallModal = document.getElementById('iosInstallModal');
@@ -17,25 +17,18 @@ document.addEventListener('DOMContentLoaded', () => {
       .catch(err => console.log('SW Registration failed: ', err));
   }
 
-  // Detect PWA Installation Availability
+  // PWA Install Prompt Listener
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
-    // Show Install Button in Top Bar
-    if (btnInstallApp) {
-      btnInstallApp.classList.remove('hidden');
-    }
+    if (btnInstallApp) btnInstallApp.classList.remove('hidden');
   });
 
-  // Handle PWA Install Button Click
   if (btnInstallApp) {
-    // Show button if iOS or Standalone check
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
 
-    if (!isStandalone) {
-      btnInstallApp.classList.remove('hidden');
-    }
+    if (!isStandalone) btnInstallApp.classList.remove('hidden');
 
     btnInstallApp.addEventListener('click', async () => {
       if (deferredPrompt) {
@@ -47,22 +40,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         deferredPrompt = null;
       } else if (isIOS) {
-        // Show iOS Installation Guide Modal
         iosInstallModal.classList.add('open');
       } else {
-        showToast('ブラウザのメニューから「アプリをインストール」を選択できます');
+        showToast('ブラウザメニューからインストール可能です');
       }
     });
   }
 
-  if (btnCloseIosModal) {
-    btnCloseIosModal.addEventListener('click', () => iosInstallModal.classList.remove('open'));
-  }
-  if (btnConfirmIosGuide) {
-    btnConfirmIosGuide.addEventListener('click', () => iosInstallModal.classList.remove('open'));
-  }
+  if (btnCloseIosModal) btnCloseIosModal.addEventListener('click', () => iosInstallModal.classList.remove('open'));
+  if (btnConfirmIosGuide) btnConfirmIosGuide.addEventListener('click', () => iosInstallModal.classList.remove('open'));
 
-  // DOM Elements - Viewfinder & Overlays
+  // DOM Elements
   const asciiCanvas = document.getElementById('asciiCanvas');
   const sourceCanvas = document.getElementById('sourceCanvas');
   const webcamVideo = document.getElementById('webcamVideo');
@@ -72,6 +60,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const shutterFlash = document.getElementById('shutterFlash');
   const canvasContainer = document.getElementById('canvasContainer');
   const dropOverlay = document.getElementById('dropOverlay');
+
+  // Aspect Ratio Button
+  const btnAspect = document.getElementById('btnAspect');
+  const aspectLabel = document.getElementById('aspectLabel');
+  const aspectModes = ['FULL', '16:9', '4:3', '1:1'];
+  let currentAspectIdx = 0;
 
   // Buttons & Controls
   const btnToggleGrid = document.getElementById('btnToggleGrid');
@@ -90,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const adjustmentDrawer = document.getElementById('adjustmentDrawer');
   const btnCloseDrawer = document.getElementById('btnCloseDrawer');
 
-  // Drawer Form Controls
+  // Form Controls
   const charSetSelect = document.getElementById('charSetSelect');
   const customCharGroup = document.getElementById('customCharGroup');
   const customCharInput = document.getElementById('customCharInput');
@@ -99,6 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const bgColorInput = document.getElementById('bgColorInput');
   const textColorInput = document.getElementById('textColorInput');
 
+  const ditherCheckbox = document.getElementById('ditherCheckbox');
   const saturationSlider = document.getElementById('saturationSlider');
   const saturationVal = document.getElementById('saturationVal');
 
@@ -158,12 +153,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   );
 
-  // Update Settings from Controls
   function updateEngineSettings() {
     let charSet = CHARACTER_SETS[charSetSelect.value];
     if (charSetSelect.value === 'custom') {
       charSet = customCharInput.value || '@%#*+=-:. ';
     }
+
+    const currentAspectMode = aspectModes[currentAspectIdx].toLowerCase();
 
     engine.setOptions({
       cols: parseInt(resolutionSlider.value, 10),
@@ -171,6 +167,8 @@ document.addEventListener('DOMContentLoaded', () => {
       charAspect: parseFloat(charAspectSlider.value),
       charSet: charSet,
       colorMode: activeColorMode,
+      frameAspect: currentAspectMode,
+      dithering: ditherCheckbox.checked,
       brightness: parseInt(brightnessSlider.value, 10),
       contrast: parseFloat(contrastSlider.value),
       saturation: parseFloat(saturationSlider.value),
@@ -183,7 +181,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Render Animation Loop
   function renderFrame() {
     if (!isPaused && currentSource) {
       engine.process(currentSource);
@@ -205,6 +202,15 @@ document.addEventListener('DOMContentLoaded', () => {
       toast.classList.remove('show');
     }, 2500);
   }
+
+  // ────────── Aspect Ratio Cycle ──────────
+  btnAspect.addEventListener('click', () => {
+    currentAspectIdx = (currentAspectIdx + 1) % aspectModes.length;
+    const modeName = aspectModes[currentAspectIdx];
+    aspectLabel.textContent = modeName;
+    showToast(`アスペクト比: ${modeName}`);
+    updateEngineSettings();
+  });
 
   // Mode Ribbon Select
   modeRibbon.addEventListener('click', (e) => {
@@ -317,6 +323,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   customCharInput.addEventListener('input', updateEngineSettings);
 
+  ditherCheckbox.addEventListener('change', updateEngineSettings);
+
   saturationSlider.addEventListener('input', () => {
     saturationVal.textContent = saturationSlider.value;
     updateEngineSettings();
@@ -390,6 +398,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   });
+
+  // Handle Window Resize / Orientation Change
+  window.addEventListener('resize', updateEngineSettings);
 
   // Initial Engine Setup & Auto Start Camera
   updateEngineSettings();

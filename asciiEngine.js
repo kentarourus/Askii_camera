@@ -1,19 +1,14 @@
 /**
  * =====================================================================
- *  AsciiEngine v2 — 高性能リアルタイム画像→アスキーアート変換エンジン
+ *  AsciiEngine v3 — Ultra-Realistic High-Fidelity ASCII Engine
  * =====================================================================
  *
- *  アーキテクチャ:
- *    SourceElement → DownsampleCanvas → ImagePipeline → CharMapper → Renderer
- *
- *  パフォーマンス改善:
- *    - OffscreenCanvas + ImageData 直接操作でメインスレッド負荷を削減
- *    - ルックアップテーブル (LUT) による gamma / contrast の事前計算
- *    - fillText のバッチ描画 (同色の文字をまとめて描画)
- *    - 不要な Math.pow / Math.sqrt をループ外に移動
+ *  新機能:
+ *    - Bayer 4x4 Ordered Dithering (写実的グラデーション & 滑らかな階調)
+ *    - S-Curve Tone Mapping (立体感・コントラスト表現の劇的向上)
+ *    - Frame Aspect Ratio Mode ('full', '16:9', '4:3', '1:1')
+ *    - バッチレンダリング & 超高速 LUT パイプライン
  */
-
-// ────────── Character Set Presets ──────────
 
 export const CHARACTER_SETS = {
   standard:  '@%#*+=-:. ',
@@ -22,72 +17,66 @@ export const CHARACTER_SETS = {
   binary:    '10',
   emoji:     '💥🔥😎⭐✨⚡🔷▫️ ',
   matrix:    'ｦｱｳｴｵｶｷｹｺｻｼｽｾｿﾀﾂﾃﾅﾆﾇﾈﾊﾋﾎﾏﾐﾑﾒﾓﾔﾕﾗﾘﾜ9876543210 ',
+  realistic: '█▉▊▋▌▍▎▏░▒▓#@$%=+*:-. ', // 超リアル表現用マルチシェード
 };
 
-// ────────── Lookup Table Builder ──────────
+// ────────── Bayer 4x4 Dithering Matrix ──────────
+const BAYER_4X4 = [
+  [-8,   0, -6,   2],
+  [ 4,  -4,  6,  -2],
+  [-5,   3, -7,   1],
+  [ 7,  -1,  5,  -3]
+];
 
-function buildGammaLUT(gamma) {
+// ────────── S-Curve Tone Mapping LUT ──────────
+function buildSCurveLUT(contrast, brightness, gamma) {
   const lut = new Uint8Array(256);
   const invGamma = 1 / Math.max(0.01, gamma);
-  for (let i = 0; i < 256; i++) {
-    lut[i] = Math.min(255, Math.max(0, Math.round(Math.pow(i / 255, invGamma) * 255)));
-  }
-  return lut;
-}
+  const contrastFactor = (259 * (contrast * 255 + 255)) / (255 * (259 - contrast * 255));
 
-function buildContrastBrightnessLUT(contrast, brightness) {
-  const lut = new Uint8Array(256);
-  const factor = (259 * (contrast * 255 + 255)) / (255 * (259 - contrast * 255));
   for (let i = 0; i < 256; i++) {
-    let v = i + brightness;
-    v = factor * (v - 128) + 128;
+    // 1. Normalized 0..1
+    let x = i / 255;
+    // 2. S-Curve sigmoid mapping for realism
+    x = x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+    let v = x * 255;
+
+    // 3. Brightness + Contrast
+    v = contrastFactor * (v + brightness - 128) + 128;
+
+    // 4. Gamma
+    v = Math.pow(Math.max(0, Math.min(255, v)) / 255, invGamma) * 255;
+
     lut[i] = Math.min(255, Math.max(0, Math.round(v)));
   }
   return lut;
 }
 
-// ────────── Image Processing Pipeline ──────────
-
+// ────────── Image Pipeline ──────────
 class ImagePipeline {
   constructor() {
-    this._gammaLUT = null;
-    this._cbLUT = null;
-    this._lastGamma = NaN;
-    this._lastContrast = NaN;
-    this._lastBrightness = NaN;
+    this._toneLUT = null;
+    this._lastParams = '';
   }
 
-  /**
-   * フルパイプラインを ImageData.data (RGBA Uint8ClampedArray) にインプレースで適用
-   */
   apply(pixels, width, height, opts) {
     const len = width * height * 4;
+    const paramKey = `${opts.contrast}_${opts.brightness}_${opts.gamma}`;
 
-    // LUT キャッシュ — パラメータが変わった時のみ再構築
-    if (opts.gamma !== this._lastGamma) {
-      this._gammaLUT = buildGammaLUT(opts.gamma);
-      this._lastGamma = opts.gamma;
-    }
-    if (opts.contrast !== this._lastContrast || opts.brightness !== this._lastBrightness) {
-      this._cbLUT = buildContrastBrightnessLUT(opts.contrast, opts.brightness);
-      this._lastContrast = opts.contrast;
-      this._lastBrightness = opts.brightness;
+    if (paramKey !== this._lastParams) {
+      this._toneLUT = buildSCurveLUT(opts.contrast, opts.brightness, opts.gamma);
+      this._lastParams = paramKey;
     }
 
-    const gammaLUT = this._gammaLUT;
-    const cbLUT = this._cbLUT;
+    const lut = this._toneLUT;
     const sat = opts.saturation;
     const needSat = sat !== 1.0;
-    const needGamma = opts.gamma !== 1.0;
-    const needCB = opts.contrast !== 1.0 || opts.brightness !== 0;
 
-    // Single-pass over all pixels
     for (let i = 0; i < len; i += 4) {
       let r = pixels[i];
       let g = pixels[i + 1];
       let b = pixels[i + 2];
 
-      // 1. Saturation (鮮やかさ)
       if (needSat) {
         const gray = 0.299 * r + 0.587 * g + 0.114 * b;
         r = Math.min(255, Math.max(0, gray + (r - gray) * sat));
@@ -95,36 +84,16 @@ class ImagePipeline {
         b = Math.min(255, Math.max(0, gray + (b - gray) * sat));
       }
 
-      // 2. Brightness + Contrast (LUT)
-      if (needCB) {
-        r = cbLUT[Math.min(255, Math.max(0, r | 0))];
-        g = cbLUT[Math.min(255, Math.max(0, g | 0))];
-        b = cbLUT[Math.min(255, Math.max(0, b | 0))];
-      }
-
-      // 3. Gamma (LUT)
-      if (needGamma) {
-        r = gammaLUT[r];
-        g = gammaLUT[g];
-        b = gammaLUT[b];
-      }
-
-      pixels[i]     = r;
-      pixels[i + 1] = g;
-      pixels[i + 2] = b;
+      pixels[i]     = lut[r | 0];
+      pixels[i + 1] = lut[g | 0];
+      pixels[i + 2] = lut[b | 0];
     }
   }
 }
 
-// ────────── Sobel Edge Detection ──────────
-
+// ────────── Sobel Edge Detector ──────────
 class EdgeDetector {
-  /**
-   * pixels (processed) から輝度グリッドを構築し、Sobel フィルタで
-   * エッジ強度マップ (Float32Array, rows*cols) を返す
-   */
   static computeEdgeMap(pixels, width, height, threshold) {
-    // Build luminance grid
     const lum = new Float32Array(width * height);
     for (let i = 0; i < width * height; i++) {
       const pi = i * 4;
@@ -133,7 +102,6 @@ class EdgeDetector {
 
     const edgeMap = new Float32Array(width * height);
 
-    // Sobel 3x3 operator
     for (let y = 1; y < height - 1; y++) {
       for (let x = 1; x < width - 1; x++) {
         const tl = lum[(y - 1) * width + (x - 1)];
@@ -145,46 +113,22 @@ class EdgeDetector {
         const bc = lum[(y + 1) * width + x];
         const br = lum[(y + 1) * width + (x + 1)];
 
-        // Gx = [-1 0 +1; -2 0 +2; -1 0 +1]
         const gx = -tl + tr - 2 * ml + 2 * mr - bl + br;
-        // Gy = [-1 -2 -1;  0  0  0; +1 +2 +1]
         const gy = -tl - 2 * tc - tr + bl + 2 * bc + br;
-
-        // Fast approximation of magnitude (avoid sqrt in hot loop)
         let mag = Math.abs(gx) + Math.abs(gy);
 
-        // Threshold gating
         edgeMap[y * width + x] = mag > threshold ? Math.min(255, mag) : 0;
       }
     }
-
     return edgeMap;
   }
 }
 
-// ────────── Color Modes ──────────
-
-const COLOR_FN = {
-  matrix(r, g, b, lum, x, y, cols, rows) {
-    const i = lum | 0;
-    return (0 << 24) | (Math.max(80, i) << 8) | ((i * 0.4) | 0);  // packed, but we return string
-  },
-  cyber(r, g, b, lum, x, y, cols, rows) {
-    const ratio = x / cols;
-    return null; // handled inline for perf
-  },
-  color(r, g, b) { return null; },
-  mono(r, g, b, lum) { return null; },
-  amber(r, g, b, lum) { return null; },
-  invert(r, g, b, lum) { return null; },
-  custom(r, g, b, lum) { return null; },
-};
-
-function getCharColorString(mode, r, g, b, lum, x, y, cols, rows, customTextColor) {
+function getCharColorString(mode, r, g, b, lum, x, y, cols, rows, customTC) {
   switch (mode) {
     case 'matrix': {
       const i = lum | 0;
-      return `rgb(0,${Math.max(80, i)},${(i * 0.4) | 0})`;
+      return `rgb(0,${Math.max(80, i)},${(i * 0.45) | 0})`;
     }
     case 'cyber': {
       const ratio = x / cols;
@@ -197,7 +141,7 @@ function getCharColorString(mode, r, g, b, lum, x, y, cols, rows, customTextColo
       return `rgb(${i},${(i * 0.7) | 0},0)`;
     }
     case 'custom':
-      return customTextColor;
+      return customTC;
     case 'invert':
       return '#111';
     case 'mono':
@@ -209,7 +153,6 @@ function getCharColorString(mode, r, g, b, lum, x, y, cols, rows, customTextColo
 }
 
 // ────────── Main Engine ──────────
-
 export class AsciiEngine {
   constructor(asciiCanvas, sourceCanvas) {
     this.asciiCanvas = asciiCanvas;
@@ -219,16 +162,18 @@ export class AsciiEngine {
 
     this.pipeline = new ImagePipeline();
 
-    // ── Options ──
+    // Options
     this.cols = 100;
     this.fontSize = 10;
     this.charAspect = 0.55;
-    this.charSet = CHARACTER_SETS.standard;
+    this.charSet = CHARACTER_SETS.realistic;
     this.colorMode = 'matrix';
+    this.frameAspect = 'full'; // 'full', '16:9', '4:3', '1:1'
+    this.dithering = true;     // Ultra realistic dithering
 
     this.brightness = 0;
-    this.contrast = 1.0;
-    this.saturation = 1.0;
+    this.contrast = 1.05;
+    this.saturation = 1.1;
     this.gamma = 1.0;
     this.edgeMode = false;
     this.edgeThreshold = 30;
@@ -237,19 +182,12 @@ export class AsciiEngine {
     this.customBgColor = '#05070a';
     this.customTextColor = '#00ff66';
 
-    // ── FPS ──
     this._fps = 0;
     this._frames = 0;
     this._fpsTime = performance.now();
 
-    // ── Text Output Cache ──
     this.lastTextOutput = '';
-
-    // ── 内部バッファ ──
-    this._charWidthCache = 0;
   }
-
-  /* ───── Public API ───── */
 
   setOptions(o) {
     for (const k of Object.keys(o)) {
@@ -260,9 +198,6 @@ export class AsciiEngine {
   getFps() { return this._fps; }
   getTextOutput() { return this.lastTextOutput; }
 
-  /**
-   * メインレンダリングパス
-   */
   process(sourceElement) {
     if (!sourceElement) return;
 
@@ -270,7 +205,7 @@ export class AsciiEngine {
     const srcH = sourceElement.videoHeight || sourceElement.height;
     if (!srcW || !srcH) return;
 
-    // ── FPS Measurement ──
+    // FPS
     this._frames++;
     const now = performance.now();
     if (now - this._fpsTime >= 1000) {
@@ -279,11 +214,23 @@ export class AsciiEngine {
       this._fpsTime = now;
     }
 
-    // ── Grid dimensions ──
-    const cols = this.cols;
-    const rows = Math.max(1, Math.floor((srcH / srcW) * cols * this.charAspect));
+    // Determine target aspect ratio
+    let targetAspectRatio = srcHeightToWidthRatio(srcW, srcH);
+    if (this.frameAspect === '16:9') targetAspectRatio = 9 / 16;
+    else if (this.frameAspect === '4:3') targetAspectRatio = 3 / 4;
+    else if (this.frameAspect === '1:1') targetAspectRatio = 1.0;
+    else if (this.frameAspect === 'full') {
+      // Fit to container dimensions if full mode
+      const parent = this.asciiCanvas.parentElement;
+      if (parent && parent.clientWidth > 0 && parent.clientHeight > 0) {
+        targetAspectRatio = parent.clientHeight / parent.clientWidth;
+      }
+    }
 
-    // ── Downsample Source → Small Canvas ──
+    const cols = this.cols;
+    const rows = Math.max(1, Math.floor(cols * targetAspectRatio * this.charAspect));
+
+    // Downsample
     this.sourceCanvas.width = cols;
     this.sourceCanvas.height = rows;
     this.sourceCtx.drawImage(sourceElement, 0, 0, cols, rows);
@@ -291,7 +238,7 @@ export class AsciiEngine {
     const imgData = this.sourceCtx.getImageData(0, 0, cols, rows);
     const pixels = imgData.data;
 
-    // ── Image Pipeline (Saturation → Brightness/Contrast → Gamma) ──
+    // Apply S-Curve Tone Pipeline
     this.pipeline.apply(pixels, cols, rows, {
       saturation: this.saturation,
       brightness: this.brightness,
@@ -299,13 +246,13 @@ export class AsciiEngine {
       gamma:      this.gamma,
     });
 
-    // ── Edge Detection (Sobel) ──
+    // Edge map if enabled
     let edgeMap = null;
     if (this.edgeMode) {
       edgeMap = EdgeDetector.computeEdgeMap(pixels, cols, rows, this.edgeThreshold);
     }
 
-    // ── Prepare Output Canvas ──
+    // Calculate Canvas Output Size
     const cellW = this.fontSize * 0.6;
     const cellH = this.fontSize;
     const outW = (cols * cellW) | 0;
@@ -321,7 +268,7 @@ export class AsciiEngine {
     // Background
     ctx.fillStyle = this.colorMode === 'custom'
       ? this.customBgColor
-      : (this.colorMode === 'invert' ? '#fff' : '#05070a');
+      : (this.colorMode === 'invert' ? '#ffffff' : '#05070a');
     ctx.fillRect(0, 0, outW, outH);
 
     ctx.font = `${this.fontSize}px 'Fira Code','Courier New',monospace`;
@@ -329,26 +276,25 @@ export class AsciiEngine {
 
     const chars = this.charSet;
     const charLen = chars.length;
-    const invCharLen = charLen / 256; // pre-compute multiplier
+    const invCharLen = charLen / 256;
     const mode = this.colorMode;
     const customTC = this.customTextColor;
     const doInvert = this.invert;
+    const doDither = this.dithering;
 
     const textLines = new Array(rows);
-
-    // ── Render Loop ──
-    // 同色バッチ描画: 前回の色を記憶し、色が変わったタイミングで fillStyle を切り替える
     let prevColor = '';
 
     for (let r = 0; r < rows; r++) {
       let line = '';
+      const bayerRow = BAYER_4X4[r % 4];
+
       for (let c = 0; c < cols; c++) {
         const pi = (r * cols + c) * 4;
         const pr = pixels[pi];
         const pg = pixels[pi + 1];
         const pb = pixels[pi + 2];
 
-        // Luminance
         let lum;
         if (edgeMap) {
           lum = edgeMap[r * cols + c];
@@ -356,14 +302,17 @@ export class AsciiEngine {
           lum = 0.299 * pr + 0.587 * pg + 0.114 * pb;
         }
 
+        // Apply Bayer Dithering for realistic smooth gradient
+        if (doDither && !edgeMap) {
+          lum += bayerRow[c % 4] * 1.5;
+        }
+
         if (doInvert) lum = 255 - lum;
 
-        // Character selection
         const ci = Math.min(charLen - 1, Math.max(0, (lum * invCharLen) | 0));
         const ch = chars[ci];
         line += ch;
 
-        // Color
         const color = getCharColorString(mode, pr, pg, pb, lum, c, r, cols, rows, customTC);
         if (color !== prevColor) {
           ctx.fillStyle = color;
@@ -376,4 +325,8 @@ export class AsciiEngine {
 
     this.lastTextOutput = textLines.join('\n');
   }
+}
+
+function srcHeightToWidthRatio(w, h) {
+  return h / w;
 }

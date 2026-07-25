@@ -39,6 +39,11 @@
             <span class="icon">📲</span> <span class="label">アプリ追加</span>
           </button>
 
+          <!-- Aspect Ratio Toggle Button -->
+          <button id="btnAspect" class="pill-btn" title="画面アスペクト比">
+            <span id="aspectLabel">FULL</span>
+          </button>
+
           <button id="btnToggleGrid" class="icon-btn" title="グリッド線">
             <svg class="svg-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM8 20H4v-4h4v4zm0-6H4v-4h4v4zm0-6H4V4h4v4zm6 12h-4v-4h4v4zm0-6h-4v-4h4v4zm0-6h-4V4h4v4zm6 12h-4v-4h4v4zm0-6h-4v-4h4v4zm0-6h-4V4h4v4z"/></svg>
           </button>
@@ -148,6 +153,7 @@
           <div class="control-group">
             <label for="charSetSelect">文字セット</label>
             <select id="charSetSelect" class="form-select">
+              <option value="realistic">Realistic (超リアルマルチシェード)</option>
               <option value="standard">Standard (@%#*+=-:. )</option>
               <option value="detailed">Detailed (70階調高精細)</option>
               <option value="matrix">Matrix (カタカナ & 数字)</option>
@@ -168,12 +174,20 @@
         <div class="drawer-card">
           <h3>画質・色彩チューニング</h3>
           
+          <div class="toggle-group">
+            <label class="toggle-label">
+              <input type="checkbox" id="ditherCheckbox" checked />
+              <span class="toggle-custom"></span>
+              リアル ディザリング (滑らかな質感表現)
+            </label>
+          </div>
+
           <div class="control-group">
             <div class="slider-header">
               <label for="saturationSlider">鮮やかさ (Saturation)</label>
-              <span id="saturationVal" class="slider-val">1.0</span>
+              <span id="saturationVal" class="slider-val">1.1</span>
             </div>
-            <input type="range" id="saturationSlider" min="0.0" max="3.0" step="0.1" value="1.0" />
+            <input type="range" id="saturationSlider" min="0.0" max="3.0" step="0.1" value="1.1" />
           </div>
 
           <div class="control-group">
@@ -195,9 +209,9 @@
           <div class="control-group">
             <div class="slider-header">
               <label for="contrastSlider">コントラスト (Contrast)</label>
-              <span id="contrastVal" class="slider-val">1.0</span>
+              <span id="contrastVal" class="slider-val">1.05</span>
             </div>
-            <input type="range" id="contrastSlider" min="0.5" max="3.0" step="0.1" value="1.0" />
+            <input type="range" id="contrastSlider" min="0.5" max="3.0" step="0.05" value="1.05" />
           </div>
 
           <div class="toggle-group">
@@ -232,17 +246,17 @@
           <div class="control-group">
             <div class="slider-header">
               <label for="resolutionSlider">解像度 (Grid Columns)</label>
-              <span id="resolutionVal" class="slider-val">100</span>
+              <span id="resolutionVal" class="slider-val">120</span>
             </div>
-            <input type="range" id="resolutionSlider" min="40" max="240" step="5" value="100" />
+            <input type="range" id="resolutionSlider" min="40" max="260" step="5" value="120" />
           </div>
 
           <div class="control-group">
             <div class="slider-header">
               <label for="fontSizeSlider">フォントサイズ (px)</label>
-              <span id="fontSizeVal" class="slider-val">10</span>
+              <span id="fontSizeVal" class="slider-val">9</span>
             </div>
-            <input type="range" id="fontSizeSlider" min="6" max="24" step="1" value="10" />
+            <input type="range" id="fontSizeSlider" min="5" max="24" step="1" value="9" />
           </div>
 
           <div class="control-group">

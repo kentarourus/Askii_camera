@@ -18,8 +18,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="./assets/index-7K742S0e.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-TyM7_BlD.css">
+  <script type="module" crossorigin src="./assets/index-CEq6mTU3.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-Ld5GLzT6.css">
 </head>
 <body class="camera-app-body">
   <div class="camera-app-container">
@@ -38,6 +38,11 @@
           <!-- Install App PWA Button -->
           <button id="btnInstallApp" class="install-app-btn hidden" title="アプリをダウンロード/インストール">
             <span class="icon">📲</span> <span class="label">アプリ追加</span>
+          </button>
+
+          <!-- Aspect Ratio Toggle Button -->
+          <button id="btnAspect" class="pill-btn" title="画面アスペクト比">
+            <span id="aspectLabel">FULL</span>
           </button>
 
           <button id="btnToggleGrid" class="icon-btn" title="グリッド線">
@@ -149,6 +154,7 @@
           <div class="control-group">
             <label for="charSetSelect">文字セット</label>
             <select id="charSetSelect" class="form-select">
+              <option value="realistic">Realistic (超リアルマルチシェード)</option>
               <option value="standard">Standard (@%#*+=-:. )</option>
               <option value="detailed">Detailed (70階調高精細)</option>
               <option value="matrix">Matrix (カタカナ & 数字)</option>
@@ -169,12 +175,20 @@
         <div class="drawer-card">
           <h3>画質・色彩チューニング</h3>
           
+          <div class="toggle-group">
+            <label class="toggle-label">
+              <input type="checkbox" id="ditherCheckbox" checked />
+              <span class="toggle-custom"></span>
+              リアル ディザリング (滑らかな質感表現)
+            </label>
+          </div>
+
           <div class="control-group">
             <div class="slider-header">
               <label for="saturationSlider">鮮やかさ (Saturation)</label>
-              <span id="saturationVal" class="slider-val">1.0</span>
+              <span id="saturationVal" class="slider-val">1.1</span>
             </div>
-            <input type="range" id="saturationSlider" min="0.0" max="3.0" step="0.1" value="1.0" />
+            <input type="range" id="saturationSlider" min="0.0" max="3.0" step="0.1" value="1.1" />
           </div>
 
           <div class="control-group">
@@ -196,9 +210,9 @@
           <div class="control-group">
             <div class="slider-header">
               <label for="contrastSlider">コントラスト (Contrast)</label>
-              <span id="contrastVal" class="slider-val">1.0</span>
+              <span id="contrastVal" class="slider-val">1.05</span>
             </div>
-            <input type="range" id="contrastSlider" min="0.5" max="3.0" step="0.1" value="1.0" />
+            <input type="range" id="contrastSlider" min="0.5" max="3.0" step="0.05" value="1.05" />
           </div>
 
           <div class="toggle-group">
@@ -233,17 +247,17 @@
           <div class="control-group">
             <div class="slider-header">
               <label for="resolutionSlider">解像度 (Grid Columns)</label>
-              <span id="resolutionVal" class="slider-val">100</span>
+              <span id="resolutionVal" class="slider-val">120</span>
             </div>
-            <input type="range" id="resolutionSlider" min="40" max="240" step="5" value="100" />
+            <input type="range" id="resolutionSlider" min="40" max="260" step="5" value="120" />
           </div>
 
           <div class="control-group">
             <div class="slider-header">
               <label for="fontSizeSlider">フォントサイズ (px)</label>
-              <span id="fontSizeVal" class="slider-val">10</span>
+              <span id="fontSizeVal" class="slider-val">9</span>
             </div>
-            <input type="range" id="fontSizeSlider" min="6" max="24" step="1" value="10" />
+            <input type="range" id="fontSizeSlider" min="5" max="24" step="1" value="9" />
           </div>
 
           <div class="control-group">
