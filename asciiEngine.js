@@ -225,25 +225,47 @@ export class AsciiEngine {
       this._fpsTime = now;
     }
 
-    // Aspect Calculation
-    let targetAR = srcH / srcW;
-    if (this.frameAspect === '16:9') targetAR = 9 / 16;
-    else if (this.frameAspect === '4:3') targetAR = 3 / 4;
-    else if (this.frameAspect === '1:1') targetAR = 1.0;
-    else if (this.frameAspect === 'full') {
+    // Aspect Calculation & Center Crop
+    const isPortrait = srcH > srcW;
+    let targetRatio; // width / height
+
+    if (this.frameAspect === '16:9') {
+      targetRatio = isPortrait ? 9 / 16 : 16 / 9;
+    } else if (this.frameAspect === '4:3') {
+      targetRatio = isPortrait ? 3 / 4 : 4 / 3;
+    } else if (this.frameAspect === '1:1') {
+      targetRatio = 1.0;
+    } else { // 'full'
       const parent = this.asciiCanvas.parentElement;
       if (parent && parent.clientWidth > 0 && parent.clientHeight > 0) {
-        targetAR = parent.clientHeight / parent.clientWidth;
+        targetRatio = parent.clientWidth / parent.clientHeight;
+      } else {
+        targetRatio = srcW / srcH;
       }
     }
 
+    // Crop box calculation (Center Crop)
+    const srcRatio = srcW / srcH;
+    let sx = 0, sy = 0, sw = srcW, sh = srcH;
+
+    if (srcRatio > targetRatio) {
+      // Source is wider -> crop left/right
+      sw = srcH * targetRatio;
+      sx = (srcW - sw) / 2;
+    } else if (srcRatio < targetRatio) {
+      // Source is taller -> crop top/bottom
+      sh = srcW / targetRatio;
+      sy = (srcH - sh) / 2;
+    }
+
+    const targetAR = 1 / targetRatio; // height / width
     const cols = this.cols;
     const rows = Math.max(1, Math.floor(cols * targetAR * this.charAspect));
 
-    // Sample Source at target resolution
+    // Sample Source with Center Crop
     this.sourceCanvas.width = cols;
     this.sourceCanvas.height = rows;
-    this.sourceCtx.drawImage(sourceElement, 0, 0, cols, rows);
+    this.sourceCtx.drawImage(sourceElement, sx, sy, sw, sh, 0, 0, cols, rows);
 
     const imgData = this.sourceCtx.getImageData(0, 0, cols, rows);
     const pixels = imgData.data;
