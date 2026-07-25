@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ASCII Camera - リアルタイム アスキーアート カメラ</title>
+  <meta name="description" content="カメラ映像や画像をリアルタイムで美しいアスキーアート(ASCII Art)に変換・調整・保存できるWebアプリです。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+  <script type="module" crossorigin src="/assets/index-Dq4u--R8.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index--8n21t8c.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-area">
+        <span class="logo-icon">📸</span>
+        <h1>ASCII<span class="highlight">VISION</span></h1>
+        <span class="badge">LIVE</span>
+      </div>
+      <p class="subtitle">カメラ・画像をリアルタイム アスキーアート変換</p>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="workspace">
+      <!-- Viewer Section -->
+      <section class="viewer-section">
+        <div class="screen-wrapper" id="screenWrapper">
+          <div class="screen-header">
+            <div class="status-indicator">
+              <span class="dot" id="statusDot"></span>
+              <span id="statusText">カメラ待機中</span>
+            </div>
+            <div class="screen-actions">
+              <button id="btnPause" class="btn-icon" title="一時停止/再開">⏸️</button>
+              <button id="btnFullscreen" class="btn-icon" title="全画面表示">⛶</button>
+            </div>
+          </div>
+          
+          <!-- Render Target Canvas for High-Performance ASCII Rendering -->
+          <div class="canvas-container" id="canvasContainer">
+            <canvas id="asciiCanvas"></canvas>
+            <div id="dropOverlay" class="drop-overlay">
+              <div class="drop-message">
+                <span class="drop-icon">📁</span>
+                <p>ここに画像をドラッグ＆ドロップ</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Hidden processing elements -->
+          <video id="webcamVideo" autoplay playsinline muted style="display: none;"></video>
+          <canvas id="sourceCanvas" style="display: none;"></canvas>
+        </div>
+
+        <!-- Quick Action Bar below Viewer -->
+        <div class="quick-actions">
+          <button id="btnSnapPng" class="btn btn-primary">
+            <span class="icon">📷</span> PNG画像で保存
+          </button>
+          <button id="btnSnapTxt" class="btn btn-secondary">
+            <span class="icon">📄</span> テキスト(.txt)保存
+          </button>
+          <button id="btnCopyTxt" class="btn btn-secondary">
+            <span class="icon">📋</span> クリップボードにコピー
+          </button>
+        </div>
+      </section>
+
+      <!-- Control Sidebar -->
+      <aside class="control-panel">
+        <!-- Input Selector Tabs -->
+        <div class="panel-card">
+          <h2>入力ソース</h2>
+          <div class="input-options">
+            <button id="btnStartCamera" class="btn btn-outline active">
+              <span class="icon">🎥</span> カメラ起動
+            </button>
+            <label class="btn btn-outline file-label">
+              <span class="icon">🖼️</span> 画像/動画選択
+              <input type="file" id="fileInput" accept="image/*,video/*" hidden />
+            </label>
+          </div>
+          <div class="camera-switch-row" id="cameraSwitchRow" style="display: none;">
+            <button id="btnSwitchCamera" class="btn btn-sm btn-subtle">
+              <span class="icon">🔄</span> カメラ切替 (前面/背面)
+            </button>
+          </div>
+        </div>
+
+        <!-- Color Mode & Style -->
+        <div class="panel-card">
+          <h2>カラー＆スタイル</h2>
+          <div class="control-group">
+            <label for="colorMode">カラーモード</label>
+            <select id="colorMode" class="form-select">
+              <option value="matrix">Matrix Green (マトリックス)</option>
+              <option value="cyber">Cyber Neon (ネオンサイバー)</option>
+              <option value="color">Full Color (原色アスキー)</option>
+              <option value="mono">Monochrome (クラシック白黒)</option>
+              <option value="amber">Amber CRT (レトロアンバー)</option>
+              <option value="invert">Inverted (反転白黒)</option>
+            </select>
+          </div>
+
+          <div class="control-group">
+            <label for="charSetSelect">文字セット</label>
+            <select id="charSetSelect" class="form-select">
+              <option value="standard">Standard (@%#*+=-:. )</option>
+              <option value="detailed">Detailed (高精細 70階調)</option>
+              <option value="blocks">Blocks (立体ブロック █▓▒░ )</option>
+              <option value="binary">Binary (バイナリ 01)</option>
+              <option value="emoji">Emoji (絵文字 😀😎🔥⭐)</option>
+              <option value="custom">Custom (カスタム)</option>
+            </select>
+          </div>
+
+          <div class="control-group" id="customCharGroup" style="display: none;">
+            <label for="customCharInput">カスタム文字 (暗い → 明るい順)</label>
+            <input type="text" id="customCharInput" class="form-input" value="@#=$:-. " placeholder="@#=$:-. " />
+          </div>
+        </div>
+
+        <!-- Image Adjustments -->
+        <div class="panel-card">
+          <h2>調整・解像度</h2>
+          
+          <div class="control-group">
+            <div class="slider-header">
+              <label for="resolutionSlider">解像度 (文字数)</label>
+              <span id="resolutionVal" class="slider-val">100</span>
+            </div>
+            <input type="range" id="resolutionSlider" min="40" max="220" step="5" value="100" />
+          </div>
+
+          <div class="control-group">
+            <div class="slider-header">
+              <label for="fontSizeSlider">フォントサイズ (px)</label>
+              <span id="fontSizeVal" class="slider-val">10</span>
+            </div>
+            <input type="range" id="fontSizeSlider" min="6" max="24" step="1" value="10" />
+          </div>
+
+          <div class="control-group">
+            <div class="slider-header">
+              <label for="brightnessSlider">明るさ</label>
+              <span id="brightnessVal" class="slider-val">0</span>
+            </div>
+            <input type="range" id="brightnessSlider" min="-100" max="100" step="5" value="0" />
+          </div>
+
+          <div class="control-group">
+            <div class="slider-header">
+              <label for="contrastSlider">コントラスト</label>
+              <span id="contrastVal" class="slider-val">1.0</span>
+            </div>
+            <input type="range" id="contrastSlider" min="0.5" max="3.0" step="0.1" value="1.0" />
+          </div>
+
+          <div class="toggle-group">
+            <label class="toggle-label">
+              <input type="checkbox" id="invertCheckbox" />
+              <span class="toggle-custom"></span>
+              輝度反転 (ネガポジ)
+            </label>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+  </div>
+
+</body>
+</html>
