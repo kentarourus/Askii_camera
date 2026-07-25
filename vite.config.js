@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  base: './',
+  base: '/Askii_camera/',
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
@@ -21,8 +21,8 @@ export default defineConfig({
         display: 'standalone',
         display_override: ['standalone', 'fullscreen', 'minimal-ui'],
         orientation: 'any',
-        start_url: './',
-        scope: './',
+        start_url: '/Askii_camera/',
+        scope: '/Askii_camera/',
         icons: [
           {
             src: 'pwa-192x192.png',
