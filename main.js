@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const statusDot = document.getElementById('statusDot');
   const statusText = document.getElementById('statusText');
+  const fpsBadge = document.getElementById('fpsBadge');
   const screenWrapper = document.getElementById('screenWrapper');
   const canvasContainer = document.getElementById('canvasContainer');
   const dropOverlay = document.getElementById('dropOverlay');
@@ -25,17 +26,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSnapTxt = document.getElementById('btnSnapTxt');
   const btnCopyTxt = document.getElementById('btnCopyTxt');
 
-  // Form Controls
+  // Form Controls - Color & Themes
   const colorModeSelect = document.getElementById('colorMode');
+  const customColorPickerRow = document.getElementById('customColorPickerRow');
+  const bgColorInput = document.getElementById('bgColorInput');
+  const textColorInput = document.getElementById('textColorInput');
+
   const charSetSelect = document.getElementById('charSetSelect');
   const customCharGroup = document.getElementById('customCharGroup');
   const customCharInput = document.getElementById('customCharInput');
 
-  const resolutionSlider = document.getElementById('resolutionSlider');
-  const resolutionVal = document.getElementById('resolutionVal');
+  // Fine Tuning Controls
+  const saturationSlider = document.getElementById('saturationSlider');
+  const saturationVal = document.getElementById('saturationVal');
 
-  const fontSizeSlider = document.getElementById('fontSizeSlider');
-  const fontSizeVal = document.getElementById('fontSizeVal');
+  const gammaSlider = document.getElementById('gammaSlider');
+  const gammaVal = document.getElementById('gammaVal');
 
   const brightnessSlider = document.getElementById('brightnessSlider');
   const brightnessVal = document.getElementById('brightnessVal');
@@ -43,7 +49,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const contrastSlider = document.getElementById('contrastSlider');
   const contrastVal = document.getElementById('contrastVal');
 
+  const edgeCheckbox = document.getElementById('edgeCheckbox');
+  const edgeThresholdGroup = document.getElementById('edgeThresholdGroup');
+  const edgeThresholdSlider = document.getElementById('edgeThresholdSlider');
+  const edgeThresholdVal = document.getElementById('edgeThresholdVal');
+
   const invertCheckbox = document.getElementById('invertCheckbox');
+
+  // Resolution Controls
+  const resolutionSlider = document.getElementById('resolutionSlider');
+  const resolutionVal = document.getElementById('resolutionVal');
+
+  const fontSizeSlider = document.getElementById('fontSizeSlider');
+  const fontSizeVal = document.getElementById('fontSizeVal');
+
+  const charAspectSlider = document.getElementById('charAspectSlider');
+  const charAspectVal = document.getElementById('charAspectVal');
 
   const toast = document.getElementById('toast');
 
@@ -85,11 +106,18 @@ document.addEventListener('DOMContentLoaded', () => {
     engine.setOptions({
       cols: parseInt(resolutionSlider.value, 10),
       fontSize: parseInt(fontSizeSlider.value, 10),
+      charAspect: parseFloat(charAspectSlider.value),
       charSet: charSet,
       colorMode: colorModeSelect.value,
       brightness: parseInt(brightnessSlider.value, 10),
       contrast: parseFloat(contrastSlider.value),
-      invert: invertCheckbox.checked
+      saturation: parseFloat(saturationSlider.value),
+      gamma: parseFloat(gammaSlider.value),
+      edgeMode: edgeCheckbox.checked,
+      edgeThreshold: parseInt(edgeThresholdSlider.value, 10),
+      invert: invertCheckbox.checked,
+      customBgColor: bgColorInput.value,
+      customTextColor: textColorInput.value
     });
   }
 
@@ -97,6 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderFrame() {
     if (!isPaused && currentSource) {
       engine.process(currentSource);
+      fpsBadge.textContent = `${engine.getFps()} FPS`;
     }
     animFrameId = requestAnimationFrame(renderFrame);
   }
@@ -126,6 +155,18 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Event Listeners - Controls
+  colorModeSelect.addEventListener('change', () => {
+    if (colorModeSelect.value === 'custom') {
+      customColorPickerRow.style.display = 'block';
+    } else {
+      customColorPickerRow.style.display = 'none';
+    }
+    updateEngineSettings();
+  });
+
+  bgColorInput.addEventListener('input', updateEngineSettings);
+  textColorInput.addEventListener('input', updateEngineSettings);
+
   charSetSelect.addEventListener('change', () => {
     if (charSetSelect.value === 'custom') {
       customCharGroup.style.display = 'flex';
@@ -136,15 +177,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   customCharInput.addEventListener('input', updateEngineSettings);
-  colorModeSelect.addEventListener('change', updateEngineSettings);
 
-  resolutionSlider.addEventListener('input', () => {
-    resolutionVal.textContent = resolutionSlider.value;
+  saturationSlider.addEventListener('input', () => {
+    saturationVal.textContent = saturationSlider.value;
     updateEngineSettings();
   });
 
-  fontSizeSlider.addEventListener('input', () => {
-    fontSizeVal.textContent = fontSizeSlider.value;
+  gammaSlider.addEventListener('input', () => {
+    gammaVal.textContent = gammaSlider.value;
     updateEngineSettings();
   });
 
@@ -158,7 +198,32 @@ document.addEventListener('DOMContentLoaded', () => {
     updateEngineSettings();
   });
 
+  edgeCheckbox.addEventListener('change', () => {
+    edgeThresholdGroup.style.display = edgeCheckbox.checked ? 'flex' : 'none';
+    updateEngineSettings();
+  });
+
+  edgeThresholdSlider.addEventListener('input', () => {
+    edgeThresholdVal.textContent = edgeThresholdSlider.value;
+    updateEngineSettings();
+  });
+
   invertCheckbox.addEventListener('change', updateEngineSettings);
+
+  resolutionSlider.addEventListener('input', () => {
+    resolutionVal.textContent = resolutionSlider.value;
+    updateEngineSettings();
+  });
+
+  fontSizeSlider.addEventListener('input', () => {
+    fontSizeVal.textContent = fontSizeSlider.value;
+    updateEngineSettings();
+  });
+
+  charAspectSlider.addEventListener('input', () => {
+    charAspectVal.textContent = charAspectSlider.value;
+    updateEngineSettings();
+  });
 
   // Buttons - Source
   btnStartCamera.addEventListener('click', async () => {

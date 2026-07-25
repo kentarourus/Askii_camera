@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ASCII Camera - リアルタイム アスキーアート カメラ</title>
-  <meta name="description" content="カメラ映像や画像をリアルタイムで美しいアスキーアート(ASCII Art)に変換・調整・保存できるWebアプリです。" />
+  <title>ASCII Camera - 高精度リアルタイム アスキーアート カメラ</title>
+  <meta name="description" content="カメラ映像や画像をリアルタイムで美しいアスキーアート(ASCII Art)に変換・詳細調整・保存できるWebアプリです。" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-Dq4u--R8.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index--8n21t8c.css">
+  <script type="module" crossorigin src="/assets/index-BzqignvH.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-YHHDIVzM.css">
 </head>
 <body>
   <div class="app-container">
@@ -32,6 +32,7 @@
             <div class="status-indicator">
               <span class="dot" id="statusDot"></span>
               <span id="statusText">カメラ待機中</span>
+              <span id="fpsBadge" class="fps-badge">0 FPS</span>
             </div>
             <div class="screen-actions">
               <button id="btnPause" class="btn-icon" title="一時停止/再開">⏸️</button>
@@ -39,7 +40,7 @@
             </div>
           </div>
           
-          <!-- Render Target Canvas for High-Performance ASCII Rendering -->
+          <!-- Render Target Canvas -->
           <div class="canvas-container" id="canvasContainer">
             <canvas id="asciiCanvas"></canvas>
             <div id="dropOverlay" class="drop-overlay">
@@ -92,7 +93,7 @@
 
         <!-- Color Mode & Style -->
         <div class="panel-card">
-          <h2>カラー＆スタイル</h2>
+          <h2>カラー＆テーマ</h2>
           <div class="control-group">
             <label for="colorMode">カラーモード</label>
             <select id="colorMode" class="form-select">
@@ -102,7 +103,21 @@
               <option value="mono">Monochrome (クラシック白黒)</option>
               <option value="amber">Amber CRT (レトロアンバー)</option>
               <option value="invert">Inverted (反転白黒)</option>
+              <option value="custom">Custom Color (テーマ自由指定)</option>
             </select>
+          </div>
+
+          <div class="control-group" id="customColorPickerRow" style="display: none;">
+            <div class="color-picker-grid">
+              <div>
+                <label for="bgColorInput">背景色</label>
+                <input type="color" id="bgColorInput" class="color-picker" value="#05070a" />
+              </div>
+              <div>
+                <label for="textColorInput">文字色</label>
+                <input type="color" id="textColorInput" class="color-picker" value="#00ff66" />
+              </div>
+            </div>
           </div>
 
           <div class="control-group">
@@ -110,10 +125,11 @@
             <select id="charSetSelect" class="form-select">
               <option value="standard">Standard (@%#*+=-:. )</option>
               <option value="detailed">Detailed (高精細 70階調)</option>
+              <option value="matrix">Matrix (カタカナ & 数字)</option>
               <option value="blocks">Blocks (立体ブロック █▓▒░ )</option>
               <option value="binary">Binary (バイナリ 01)</option>
-              <option value="emoji">Emoji (絵文字 😀😎🔥⭐)</option>
-              <option value="custom">Custom (カスタム)</option>
+              <option value="emoji">Emoji (絵文字 💥🔥😎⭐)</option>
+              <option value="custom">Custom (カスタム指定)</option>
             </select>
           </div>
 
@@ -123,16 +139,77 @@
           </div>
         </div>
 
-        <!-- Image Adjustments -->
+        <!-- Color & Image Adjustments (Fine Tuning) -->
         <div class="panel-card">
-          <h2>調整・解像度</h2>
+          <h2>画質・色彩の細部調整</h2>
           
           <div class="control-group">
             <div class="slider-header">
-              <label for="resolutionSlider">解像度 (文字数)</label>
+              <label for="saturationSlider">鮮やかさ (Saturation)</label>
+              <span id="saturationVal" class="slider-val">1.0</span>
+            </div>
+            <input type="range" id="saturationSlider" min="0.0" max="3.0" step="0.1" value="1.0" />
+          </div>
+
+          <div class="control-group">
+            <div class="slider-header">
+              <label for="gammaSlider">ガンマ補正 (Gamma)</label>
+              <span id="gammaVal" class="slider-val">1.0</span>
+            </div>
+            <input type="range" id="gammaSlider" min="0.2" max="2.5" step="0.1" value="1.0" />
+          </div>
+
+          <div class="control-group">
+            <div class="slider-header">
+              <label for="brightnessSlider">明るさ (Brightness)</label>
+              <span id="brightnessVal" class="slider-val">0</span>
+            </div>
+            <input type="range" id="brightnessSlider" min="-100" max="100" step="5" value="0" />
+          </div>
+
+          <div class="control-group">
+            <div class="slider-header">
+              <label for="contrastSlider">コントラスト (Contrast)</label>
+              <span id="contrastVal" class="slider-val">1.0</span>
+            </div>
+            <input type="range" id="contrastSlider" min="0.5" max="3.0" step="0.1" value="1.0" />
+          </div>
+
+          <div class="toggle-group">
+            <label class="toggle-label">
+              <input type="checkbox" id="edgeCheckbox" />
+              <span class="toggle-custom"></span>
+              輪郭抽出 (エッジ強調/サイバー表示)
+            </label>
+          </div>
+
+          <div class="control-group" id="edgeThresholdGroup" style="display: none;">
+            <div class="slider-header">
+              <label for="edgeThresholdSlider">輪郭感度 (Edge Sensitivity)</label>
+              <span id="edgeThresholdVal" class="slider-val">30</span>
+            </div>
+            <input type="range" id="edgeThresholdSlider" min="5" max="100" step="5" value="30" />
+          </div>
+
+          <div class="toggle-group">
+            <label class="toggle-label">
+              <input type="checkbox" id="invertCheckbox" />
+              <span class="toggle-custom"></span>
+              輝度反転 (ネガポジ)
+            </label>
+          </div>
+        </div>
+
+        <!-- Resolution & Geometry -->
+        <div class="panel-card">
+          <h2>グリッド・解像度</h2>
+          
+          <div class="control-group">
+            <div class="slider-header">
+              <label for="resolutionSlider">解像度 (Grid Width)</label>
               <span id="resolutionVal" class="slider-val">100</span>
             </div>
-            <input type="range" id="resolutionSlider" min="40" max="220" step="5" value="100" />
+            <input type="range" id="resolutionSlider" min="40" max="240" step="5" value="100" />
           </div>
 
           <div class="control-group">
@@ -145,26 +222,10 @@
 
           <div class="control-group">
             <div class="slider-header">
-              <label for="brightnessSlider">明るさ</label>
-              <span id="brightnessVal" class="slider-val">0</span>
+              <label for="charAspectSlider">文字縦横比 (Aspect Ratio)</label>
+              <span id="charAspectVal" class="slider-val">0.55</span>
             </div>
-            <input type="range" id="brightnessSlider" min="-100" max="100" step="5" value="0" />
-          </div>
-
-          <div class="control-group">
-            <div class="slider-header">
-              <label for="contrastSlider">コントラスト</label>
-              <span id="contrastVal" class="slider-val">1.0</span>
-            </div>
-            <input type="range" id="contrastSlider" min="0.5" max="3.0" step="0.1" value="1.0" />
-          </div>
-
-          <div class="toggle-group">
-            <label class="toggle-label">
-              <input type="checkbox" id="invertCheckbox" />
-              <span class="toggle-custom"></span>
-              輝度反転 (ネガポジ)
-            </label>
+            <input type="range" id="charAspectSlider" min="0.30" max="0.90" step="0.05" value="0.55" />
           </div>
         </div>
       </aside>

@@ -100,7 +100,7 @@ body {
 /* Main Layout */
 .workspace {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: 1fr 360px;
   gap: 1.5rem;
   padding: 1.5rem 2rem;
   flex: 1;
@@ -132,7 +132,7 @@ body {
   flex-direction: column;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
   position: relative;
-  min-height: 520px;
+  min-height: 540px;
 }
 
 .screen-header {
@@ -147,7 +147,7 @@ body {
 .status-indicator {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.6rem;
   font-size: 0.85rem;
   color: var(--text-muted);
 }
@@ -163,6 +163,16 @@ body {
 .status-indicator .dot.active {
   background: var(--matrix-green);
   box-shadow: 0 0 8px var(--matrix-green);
+}
+
+.fps-badge {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
+  color: var(--primary);
+  border: 1px solid var(--panel-border);
 }
 
 .screen-actions {
@@ -331,7 +341,7 @@ body {
 }
 
 .panel-card h2 {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -348,6 +358,30 @@ body {
 
 .camera-switch-row {
   margin-top: 0.25rem;
+}
+
+/* Color Picker Row */
+.color-picker-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.color-picker-grid label {
+  display: block;
+  font-size: 0.8rem;
+  margin-bottom: 0.3rem;
+  color: var(--text-muted);
+}
+
+.color-picker {
+  width: 100%;
+  height: 38px;
+  padding: 0 0.2rem;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
 }
 
 /* Forms & Controls */
